@@ -1,0 +1,7 @@
+{
+  "input_formalization": {
+    "provider": null,
+    "assistant_id": null,
+    "_comment": "Set provider (e.g. openai) and assistant_id when you wire an Assistants API or other runtime. Prompt text versions live only in the .md files referenced by manifest.json."
+  }
+}

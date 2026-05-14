@@ -28,9 +28,13 @@ google = ["google-generativeai>=0.5"]
 
 [project.scripts]
 autopaper = "autopaper.cli:main"
+autopaper-formalize-input = "autopaper.pipeline.formalize_input:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+autopaper = ["prompts/**/*.md", "prompts/**/*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

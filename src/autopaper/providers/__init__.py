@@ -2,6 +2,7 @@ from autopaper.providers.base import BaseLLMProvider, LLMProvider
 from autopaper.providers.claude import ClaudeProvider
 from autopaper.providers.gemini import GeminiProvider
 from autopaper.providers.gpt import GPTProvider
+from autopaper.providers.stub import StubLLMProvider
 
 __all__ = [
     "BaseLLMProvider",
@@ -9,4 +10,5 @@ __all__ = [
     "GeminiProvider",
     "GPTProvider",
     "LLMProvider",
+    "StubLLMProvider",
 ]

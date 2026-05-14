@@ -5,7 +5,6 @@ import asyncio
 import sys
 from pathlib import Path
 
-from autopaper.config import Settings
 from autopaper.generation.markdown import write_markdown
 from autopaper.inputs import (
     ensure_input_layout,
@@ -13,7 +12,7 @@ from autopaper.inputs import (
     load_input_folder,
 )
 from autopaper.orchestration import Orchestrator
-from autopaper.providers import GPTProvider
+from autopaper.providers import StubLLMProvider
 
 DEFAULT_DETAILS_FALLBACK = (
     "Write an IEEE-style research draft using the materials in the input folder. "
@@ -85,20 +84,18 @@ def main(argv: list[str] | None = None) -> None:
     out_path = Path(args.out) if args.out else (root / "output" / "paper_draft.md")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    settings = Settings()
-
     async def _run() -> None:
-        gpt = GPTProvider(settings)
+        llm = StubLLMProvider()
         try:
             orch = Orchestrator(
-                research_llm=gpt,
-                writing_llm=gpt,
-                review_llm=gpt,
+                research_llm=llm,
+                writing_llm=llm,
+                review_llm=llm,
                 title=title,
             )
             draft = await orch.run(research)
         finally:
-            await gpt.aclose()
+            await llm.aclose()
         write_markdown(draft, out_path)
         print(f"Wrote {out_path.resolve()}")
 

@@ -9,6 +9,8 @@ from autopaper.inputs.models import ResearchInput
 
 TEXT_GLOB_ORDER = ("*.md", "*.txt", "*.rst")
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tif", ".tiff"}
+
+
 def _iter_text_files(directory: Path) -> list[Path]:
     if not directory.is_dir():
         return []

@@ -1,0 +1,6 @@
+{
+  "input_formalization": {
+    "system": "input_formalization/system_v1.md",
+    "user": "input_formalization/user_v1.md"
+  }
+}
