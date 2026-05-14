@@ -19,11 +19,10 @@ class PaperSection(str, Enum):
 
 @dataclass(slots=True)
 class ResearchInput:
-    """Bundled inputs for the paper pipeline."""
+    """Bundled inputs for the paper pipeline (aligned with input folder layout)."""
 
-    notes: str
-    user_instructions: str
-    model_outputs: str = ""
+    description: str
+    details: str
     technical_details: str = ""
     extra_context: dict[str, Any] = field(default_factory=dict)
 

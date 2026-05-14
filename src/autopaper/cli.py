@@ -15,7 +15,7 @@ from autopaper.inputs import (
 from autopaper.orchestration import Orchestrator
 from autopaper.providers import GPTProvider
 
-DEFAULT_INSTRUCTIONS = (
+DEFAULT_DETAILS_FALLBACK = (
     "Write an IEEE-style research draft using the materials in the input folder. "
     "Stay faithful to provided numbers and claims."
 )
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--input",
         default=None,
-        help="Path to input folder (with notes/, prompts/, …). If omitted, you are prompted interactively.",
+        help="Path to input folder (description/, details/, images/, metadata/). If omitted, you are prompted interactively.",
     )
     parser.add_argument(
         "--no-create-dirs",
@@ -64,9 +64,9 @@ def main(argv: list[str] | None = None) -> None:
         help="Output markdown path (default: <input>/output/paper_draft.md)",
     )
     parser.add_argument(
-        "--instructions-fallback",
-        default=DEFAULT_INSTRUCTIONS,
-        help="Used when prompts/ has no text files.",
+        "--details-fallback",
+        default=DEFAULT_DETAILS_FALLBACK,
+        help="Used when details/ has no text files.",
     )
     args = parser.parse_args(argv)
 
@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> None:
         ensure_input_layout(root)
 
     bundle = load_input_folder(root)
-    research = bundle.to_research_input(args.instructions_fallback)
+    research = bundle.to_research_input(args.details_fallback)
     title = bundle.title or "Untitled Manuscript"
     out_path = Path(args.out) if args.out else (root / "output" / "paper_draft.md")
     out_path.parent.mkdir(parents=True, exist_ok=True)

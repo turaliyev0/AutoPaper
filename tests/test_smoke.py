@@ -27,6 +27,6 @@ async def test_orchestrator_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
             return "stub"
 
     orch = Orchestrator(FakeLLM(), FakeLLM(), FakeLLM(), title="T")
-    d = await orch.run(ResearchInput(notes="n", user_instructions="i"))
+    d = await orch.run(ResearchInput(description="n", details="i"))
     assert d.title == "T"
     assert any(s.section == PaperSection.ABSTRACT for s in d.sections)

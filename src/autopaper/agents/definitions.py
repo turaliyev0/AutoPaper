@@ -14,7 +14,7 @@ class ResearchAgent(Agent):
                 "role": "system",
                 "content": (
                     "You are a research analyst. Synthesize the user's materials into "
-                    "structured bullet points: objectives, methods, datasets, metrics, "
+                    "structured bullet points: objectives, methods, metrics, "
                     "key results, limitations, and open questions. Be faithful to the source; "
                     "do not invent citations or numbers."
                 ),
@@ -22,10 +22,9 @@ class ResearchAgent(Agent):
             {
                 "role": "user",
                 "content": (
-                    f"User instructions:\n{ri.user_instructions}\n\n"
-                    f"Research notes:\n{ri.notes}\n\n"
-                    f"Model outputs / results:\n{ri.model_outputs or '(none)'}\n\n"
-                    f"Technical / architecture details:\n{ri.technical_details or '(none)'}"
+                    f"Details (instructions / requirements):\n{ri.details}\n\n"
+                    f"Description (source material):\n{ri.description}\n\n"
+                    f"Technical / supplementary context:\n{ri.technical_details or '(none)'}"
                 ),
             },
         ]
@@ -59,7 +58,7 @@ class WritingAgent(Agent):
                     f"Write the section: {self._section}\n\n"
                     f"Research synthesis:\n{synth}\n\n"
                     f"Already drafted sections:\n{prior or '(none)'}\n\n"
-                    f"Original instructions:\n{ri.user_instructions}"
+                    f"Original details:\n{ri.details}"
                 ),
             },
         ]
