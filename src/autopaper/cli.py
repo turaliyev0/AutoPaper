@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -11,7 +12,9 @@ from autopaper.inputs import (
     expected_subpaths,
     load_input_folder,
 )
+from autopaper.inputs.serialization import paper_draft_to_dict, research_input_to_dict
 from autopaper.orchestration import Orchestrator
+from autopaper.pipeline.run_directory import allocate_run_directory, write_run_manifest
 from autopaper.providers import StubLLMProvider
 
 DEFAULT_DETAILS_FALLBACK = (
@@ -60,7 +63,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--out",
         default=None,
-        help="Output markdown path (default: <input>/output/paper_draft.md)",
+        help="Optional extra path for the Markdown draft (always also written under the run folder).",
+    )
+    parser.add_argument(
+        "--run-dir",
+        default=None,
+        help="Optional run directory; default is a new output/run_<input_name>_<n>/ folder.",
     )
     parser.add_argument(
         "--details-fallback",
@@ -81,10 +89,16 @@ def main(argv: list[str] | None = None) -> None:
     bundle = load_input_folder(root)
     research = bundle.to_research_input(args.details_fallback)
     title = bundle.title or "Untitled Manuscript"
-    out_path = Path(args.out) if args.out else (root / "output" / "paper_draft.md")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async def _run() -> None:
+    run_dir = Path(args.run_dir).expanduser().resolve() if args.run_dir else allocate_run_directory(root)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    (run_dir / "01_research_input.json").write_text(
+        json.dumps(research_input_to_dict(research), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    async def _run() -> Path:
         llm = StubLLMProvider()
         try:
             orch = Orchestrator(
@@ -96,10 +110,38 @@ def main(argv: list[str] | None = None) -> None:
             draft = await orch.run(research)
         finally:
             await llm.aclose()
-        write_markdown(draft, out_path)
-        print(f"Wrote {out_path.resolve()}")
 
-    asyncio.run(_run())
+        md_path = run_dir / "02_paper_draft.md"
+        write_markdown(draft, md_path)
+        (run_dir / "03_paper_draft.json").write_text(
+            json.dumps(paper_draft_to_dict(draft), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        extra_out = Path(args.out).expanduser().resolve() if args.out else None
+        if extra_out is not None:
+            extra_out.parent.mkdir(parents=True, exist_ok=True)
+            write_markdown(draft, extra_out)
+
+        steps = [
+            "00_run_manifest.json",
+            "01_research_input.json",
+            "02_paper_draft.md",
+            "03_paper_draft.json",
+        ]
+        if extra_out is not None:
+            steps.append(f"copy:{extra_out.as_posix()}")
+        write_run_manifest(
+            run_dir,
+            pipeline="paper_draft_stub",
+            input_root=root,
+            extra={"steps": steps, "title": title},
+        )
+        return md_path
+
+    md_written = asyncio.run(_run())
+    print(f"Run directory: {run_dir.resolve()}")
+    print(f"Draft: {md_written.resolve()}")
 
 
 if __name__ == "__main__":

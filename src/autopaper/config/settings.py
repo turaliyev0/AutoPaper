@@ -19,3 +19,7 @@ class Settings(BaseSettings):
     default_model_gpt: str = "gpt-4o-mini"
     default_model_claude: str = "claude-3-5-sonnet-20241022"
     default_model_gemini: str = "gemini-1.5-pro"
+    default_model_vision: str = Field(
+        default="gpt-4o",
+        description="OpenAI vision model for per-image descriptions (when --describe-images).",
+    )

@@ -98,3 +98,30 @@ def build_input_formalization_run(
             "and assistants.json; switch versions by changing manifest.json paths."
         ),
     }
+
+
+_DEFAULT_IMAGE_SYSTEM = (
+    "You describe images for a technical research paper. "
+    "Be precise about axes, units, chart types, visible numbers, and any readable text. "
+    "If something is unclear, say so."
+)
+
+
+_DEFAULT_IMAGE_USER = (
+    "Figure path (relative to the project input folder): {{IMAGE_RELATIVE_PATH}}\n\n"
+    "Provide a structured description suitable for downstream writing agents."
+)
+
+
+def load_image_description_prompts(
+    *, prompts_dir: Path | None = None
+) -> tuple[str, str, dict[str, str]]:
+    """Load image_description slots from manifest; fall back to built-in prompts if the group is missing."""
+    base = prompts_dir or _default_prompts_dir()
+    try:
+        texts, sources = load_prompt_slot_group("image_description", prompts_dir=base)
+        if "system" not in texts or "user" not in texts:
+            raise KeyError("image_description requires system and user slots")
+        return texts["system"], texts["user"], sources
+    except (KeyError, FileNotFoundError, OSError):
+        return _DEFAULT_IMAGE_SYSTEM, _DEFAULT_IMAGE_USER, {}
