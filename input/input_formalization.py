@@ -6,8 +6,8 @@ from autopaper.pipeline.input_bundle import load_raw_input_bundle, truncate_bund
 from autopaper.prompts.loader import build_input_formalization_run
 
 
-def test_load_raw_input_bundle(tmp_path: Path) -> None:
-    root = tmp_path / "in"
+def input_load_raw_input_bundle(tmp_path: Path) -> None:
+    root = tmp_path / "input"
     (root / "description").mkdir(parents=True)
     (root / "details").mkdir(parents=True)
     (root / "images").mkdir(parents=True)
@@ -25,8 +25,8 @@ def test_load_raw_input_bundle(tmp_path: Path) -> None:
     assert b["metadata_json_files"][0]["parsed"]["title"] == "T"
 
 
-def test_truncate_bundle_for_llm_marks_long_files(tmp_path: Path) -> None:
-    root = tmp_path / "in2"
+def input_truncation_marks_long_files(tmp_path: Path) -> None:
+    root = tmp_path / "input_truncation"
     (root / "description").mkdir(parents=True)
     (root / "description" / "big.txt").write_text("x" * 100, encoding="utf-8")
     b = load_raw_input_bundle(root)
@@ -34,18 +34,18 @@ def test_truncate_bundle_for_llm_marks_long_files(tmp_path: Path) -> None:
     assert t["description_files"][0]["content_was_truncated"] is True
 
 
-def test_parse_model_json_fenced() -> None:
+def input_parse_model_json_fenced() -> None:
     raw = '```json\n{"pipeline_stage": "input_formalization", "x": true}\n```'
     d = parse_model_json(raw)
     assert d["pipeline_stage"] == "input_formalization" and d["x"] is True
 
 
-def test_parse_model_json_plain() -> None:
+def input_parse_model_json_plain() -> None:
     d = parse_model_json('  {"a": 2}  ')
     assert d == {"a": 2}
 
 
-def test_build_consolidated_input_structure() -> None:
+def input_build_consolidated_structure() -> None:
     from autopaper.pipeline.consolidated_input import build_consolidated_input
 
     raw = {"input_root": "/x", "image_paths": ["images/a.png"]}
@@ -59,7 +59,7 @@ def test_build_consolidated_input_structure() -> None:
     assert doc["images"][0]["ai_description"] == "chart"
 
 
-def test_build_input_formalization_run_with_custom_prompts(tmp_path: Path) -> None:
+def input_formalization_prompts_custom_tree(tmp_path: Path) -> None:
     p = tmp_path / "prompts"
     (p / "input_formalization").mkdir(parents=True)
     (p / "manifest.json").write_text(
@@ -79,7 +79,7 @@ def test_build_input_formalization_run_with_custom_prompts(tmp_path: Path) -> No
     assert run["prompt_files"]["system"] == "input_formalization/system_v1.md"
 
 
-def test_run_input_formalization_writes_numbered_artifacts(tmp_path: Path) -> None:
+def input_formalization_run_numbered_artifacts(tmp_path: Path) -> None:
     p = tmp_path / "prompts"
     (p / "input_formalization").mkdir(parents=True)
     (p / "manifest.json").write_text(
@@ -91,15 +91,16 @@ def test_run_input_formalization_writes_numbered_artifacts(tmp_path: Path) -> No
     (p / "input_formalization" / "system_v1.md").write_text("S", encoding="utf-8")
     (p / "input_formalization" / "user_v1.md").write_text("{{RAW_INPUT_BUNDLE_JSON}}", encoding="utf-8")
 
-    root = tmp_path / "paper_in"
+    root = tmp_path / "input"
     (root / "description").mkdir(parents=True)
     (root / "description" / "n.txt").write_text("x", encoding="utf-8")
     (root / "details").mkdir(parents=True)
     (root / "images").mkdir(parents=True)
+    (root / "images" / "fig1.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     (root / "metadata").mkdir(parents=True)
 
     _, run_dir = run_input_formalization(root, save_raw=True, prompts_dir=p)
-    assert run_dir.name.startswith("run_paper_in_")
+    assert run_dir.name.startswith("run_input_")
     assert (run_dir / "00_run_manifest.json").is_file()
     assert (run_dir / "01_raw_input_bundle.json").is_file()
     assert (run_dir / "02_truncated_bundle_for_llm.json").is_file()

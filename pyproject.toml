@@ -38,7 +38,9 @@ autopaper = ["prompts/**/*.md", "prompts/**/*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["input"]
+python_files = ["input_*.py"]
+python_functions = ["input_*"]
 
 [tool.ruff]
 line-length = 100

@@ -3,8 +3,8 @@ from pathlib import Path
 from autopaper.inputs.folder_loader import ensure_input_layout, load_input_folder
 
 
-def test_ensure_and_load_roundtrip(tmp_path: Path) -> None:
-    root = tmp_path / "my_input"
+def input_ensure_layout_load_roundtrip(tmp_path: Path) -> None:
+    root = tmp_path / "input"
     ensure_input_layout(root)
     (root / "description" / "a.md").write_text("# Lab\nWe tested X.", encoding="utf-8")
     (root / "details" / "main.txt").write_text("Focus on methodology.", encoding="utf-8")
@@ -20,8 +20,8 @@ def test_ensure_and_load_roundtrip(tmp_path: Path) -> None:
     assert ri.extra_context.get("input_root")
 
 
-def test_details_fallback(tmp_path: Path) -> None:
-    root = tmp_path / "empty_details"
+def input_details_fallback(tmp_path: Path) -> None:
+    root = tmp_path / "input_no_details"
     ensure_input_layout(root)
     (root / "description" / "n.txt").write_text("note", encoding="utf-8")
     bundle = load_input_folder(root)

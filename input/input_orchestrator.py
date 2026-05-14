@@ -4,13 +4,13 @@ from autopaper.inputs import PaperSection, ResearchInput
 from autopaper.validation.ieee_format import IEEEFormatHints
 
 
-def test_ieee_scan_empty_issues_for_short_text() -> None:
+def input_ieee_format_scan_short_text() -> None:
     h = IEEEFormatHints.scan("Short.")
     assert isinstance(h.issues, list)
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+async def input_orchestrator_runs_with_stub_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     from autopaper.orchestration import Orchestrator
     from autopaper.providers.base import BaseLLMProvider
 
