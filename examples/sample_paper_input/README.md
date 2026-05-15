@@ -12,6 +12,6 @@ autopaper --input examples/sample_paper_input
 
 Requires **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** in the environment (export in your shell or use your IDE env).
 
-Each run writes artifacts under **`<repo>/Output/execution_NNN/`** at the AutoPaper project root (not inside this folder). The manifest still records the paper folder as **`input_root`**.
+Each run writes under **`<repo>/Output/execution_NNN/`**: `01_raw_input_bundle.json`, `02_image_descriptions.json`, `03_ai_extraction.json`, plus `00_run_manifest.json`.
 
 `Output/` at repo root is gitignored so local runs do not clutter commits.

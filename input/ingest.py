@@ -12,7 +12,8 @@ from .run_workspace import (
     write_run_manifest,
 )
 
-AI_EXTRACTION_FILENAME = "02_ai_extraction.json"
+IMAGE_DESCRIPTIONS_FILENAME = "02_image_descriptions.json"
+AI_EXTRACTION_FILENAME = "03_ai_extraction.json"
 
 
 def _read_text_file(path: Path) -> str:
@@ -80,10 +81,12 @@ def run_ingest_pipeline(
     output_root: Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
-    Resolve ``root``, ensure subfolders exist, allocate ``<Output>/execution_NNN/``
-    (see :func:`input.run_workspace.resolve_pipeline_output_root`), write
-    ``01_raw_input_bundle.json`` and ``00_run_manifest.json``, run Gemini,
-    and write ``02_ai_extraction.json``.
+    Pipeline steps under ``<Output>/execution_NNN/``:
+
+    - **00** ``00_run_manifest.json``
+    - **01** ``01_raw_input_bundle.json``
+    - **02** ``02_image_descriptions.json`` (Gemini vision on images only)
+    - **03** ``03_ai_extraction.json`` (Gemini restructure: text + metadata + step-02 descriptions)
 
     Returns ``(bundle, run_path)``.
     """
@@ -113,9 +116,17 @@ def run_ingest_pipeline(
     from input.agents.gemini_agent import GeminiProcessor
 
     processor = GeminiProcessor(bundle)
-    processed = processor.process()
+
+    image_descriptions = processor.describe_images()
+    (run_path / IMAGE_DESCRIPTIONS_FILENAME).write_text(
+        json.dumps(image_descriptions, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    append_run_manifest_steps(run_path, IMAGE_DESCRIPTIONS_FILENAME)
+
+    rendered = processor.render_extraction(image_descriptions)
     (run_path / AI_EXTRACTION_FILENAME).write_text(
-        json.dumps(processed, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(rendered, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     append_run_manifest_steps(run_path, AI_EXTRACTION_FILENAME)

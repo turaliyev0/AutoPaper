@@ -1,6 +1,11 @@
 """Paper input: layout, loading, run workspace, ingest, agents, prompts (all under this package)."""
 
-from .ingest import AI_EXTRACTION_FILENAME, load_raw_input_bundle, run_ingest_pipeline
+from .ingest import (
+    AI_EXTRACTION_FILENAME,
+    IMAGE_DESCRIPTIONS_FILENAME,
+    load_raw_input_bundle,
+    run_ingest_pipeline,
+)
 from .layout import (
     ensure_input_layout,
     expected_subpaths,
@@ -16,6 +21,7 @@ from .run_workspace import (
 
 __all__ = [
     "AI_EXTRACTION_FILENAME",
+    "IMAGE_DESCRIPTIONS_FILENAME",
     "allocate_execution_directory",
     "append_run_manifest_steps",
     "ensure_input_layout",
