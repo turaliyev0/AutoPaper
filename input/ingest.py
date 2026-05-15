@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from autopaper.inputs.layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER
+from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
+from .run_workspace import allocate_execution_directory, append_run_manifest_steps, write_run_manifest
+
+AI_EXTRACTION_FILENAME = "02_ai_extraction.json"
 
 
 def _read_text_file(path: Path) -> str:
@@ -55,7 +58,7 @@ def _list_image_paths(root: Path) -> list[str]:
 
 
 def load_raw_input_bundle(root: Path) -> dict[str, Any]:
-    """Load all text files under description/ and details/, metadata JSON, and image paths (no bytes)."""
+    """Load text under description/ and details/, metadata JSON, and image paths (no bytes)."""
     root = root.expanduser().resolve()
     return {
         "input_root": root.as_posix(),
@@ -64,3 +67,50 @@ def load_raw_input_bundle(root: Path) -> dict[str, Any]:
         "metadata_json_files": _collect_metadata_json(root),
         "image_paths": _list_image_paths(root),
     }
+
+
+def run_ingest_pipeline(
+    root: Path,
+    *,
+    process_ai: bool = True,
+) -> tuple[dict[str, Any], Path]:
+    """
+    Resolve ``root``, ensure subfolders exist, allocate ``output/execution_NNN/``,
+    write ``01_raw_input_bundle.json`` and ``00_run_manifest.json``, then by default
+    run Gemini and write ``02_ai_extraction.json`` (unless ``process_ai`` is false).
+
+    Returns ``(bundle, run_path)``.
+    """
+    root = root.expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"Not a directory: {root}")
+
+    ensure_input_layout(root)
+
+    run_path = allocate_execution_directory(root)
+
+    bundle = load_raw_input_bundle(root)
+
+    (run_path / "01_raw_input_bundle.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    write_run_manifest(
+        run_path,
+        pipeline="input_ingest",
+        input_root=root,
+        extra={"steps": ["00_run_manifest.json", "01_raw_input_bundle.json"]},
+    )
+
+    if process_ai:
+        from input.agents.gemini_agent import GeminiProcessor
+
+        processor = GeminiProcessor(bundle)
+        processed = processor.process()
+        (run_path / AI_EXTRACTION_FILENAME).write_text(
+            json.dumps(processed, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        append_run_manifest_steps(run_path, AI_EXTRACTION_FILENAME)
+
+    return bundle, run_path

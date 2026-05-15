@@ -10,7 +10,10 @@ readme = "README.MD"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Auto-Paper contributors" }]
-dependencies = []
+dependencies = [
+    "google-generativeai>=0.8.0",
+    "pillow>=10.0.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -19,15 +22,14 @@ dev = [
 ]
 
 [project.scripts]
-autopaper = "autopaper.cli:main"
+autopaper = "autopaper.main.app:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["autopaper*", "input*"]
 
-[tool.pytest.ini_options]
-testpaths = ["input"]
-python_files = ["input_*.py"]
-python_functions = ["input_*"]
+[tool.setuptools.package-data]
+input = ["prompts/**/*.md"]
 
 [tool.ruff]
 line-length = 100

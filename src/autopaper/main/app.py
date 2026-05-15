@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from importlib import import_module
 from pathlib import Path
 
-from autopaper.ingest import prepare_input_run
+from input.ingest import run_ingest_pipeline
+
+_builtin_input = import_module("builtins").input
 
 
 def _resolve_root(args: argparse.Namespace) -> Path:
@@ -13,7 +17,7 @@ def _resolve_root(args: argparse.Namespace) -> Path:
     if not sys.stdin.isatty():
         print("Pass --input FOLDER (no TTY).", file=sys.stderr)
         raise SystemExit(2)
-    raw = input("Input folder path: ").strip().strip('"').strip("'")
+    raw = _builtin_input("Input folder path: ").strip().strip('"').strip("'")
     if not raw:
         print("Empty path.", file=sys.stderr)
         raise SystemExit(2)
@@ -22,37 +26,33 @@ def _resolve_root(args: argparse.Namespace) -> Path:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Create output/run_<folder>_<n>/ and write 01_raw_input_bundle.json from description/, details/, images/, metadata/."
+        description=(
+            "Ensure paper input layout, allocate output/execution_NNN/, write bundle + manifest; "
+            "run Gemini by default (use --no-ai to skip)."
+        )
     )
     parser.add_argument(
         "--input",
         default=None,
-        help="Input project folder. If omitted, prompts when TTY.",
+        help="Paper project folder. If omitted, prompts when TTY.",
     )
     parser.add_argument(
-        "--no-create-dirs",
+        "--no-ai",
         action="store_true",
-        help="Do not create missing layout; require description/, details/, images/, metadata/.",
-    )
-    parser.add_argument(
-        "--run-dir",
-        default=None,
-        help="Use this directory instead of allocating output/run_<name>_<n>/.",
+        help="Skip Gemini; only write 01_raw_input_bundle.json (no 02_ai_extraction.json).",
     )
     args = parser.parse_args(argv)
 
     root = _resolve_root(args)
-    explicit = Path(args.run_dir).expanduser().resolve() if args.run_dir else None
 
     try:
-        _, run_path = prepare_input_run(
-            root,
-            run_dir=explicit,
-            create_layout=not args.no_create_dirs,
-        )
+        _, run_path = run_ingest_pipeline(root, process_ai=not args.no_ai)
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
+    except (RuntimeError, ImportError, ValueError, json.JSONDecodeError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
 
     print(f"Run directory: {run_path.resolve()}")
 
