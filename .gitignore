@@ -9,3 +9,6 @@ __pycache__/
 dist/
 build/
 paper_draft.md
+
+# Example paper runs (generated under examples/*/output/)
+examples/**/output/

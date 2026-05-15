@@ -1,0 +1,7 @@
+Details folder (plain text example)
+
+Instrumentation: hydraulic actuator, 5 Hz sine dwell, room temperature.
+Sample count: n=12 per condition (blocked design).
+Primary metric: secant modulus at 50% of peak stress per cycle 1 and cycle 1e6.
+
+Note: figures live under images/; this file is only procedural text.

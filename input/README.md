@@ -4,6 +4,8 @@ Top-level Python package for **paper project folders**: expected directory layou
 
 Install the project (`pip install -e .`) so both `input` and `autopaper` are on your path.
 
+A ready-made sample you can run against lives at **`examples/sample_paper_input/`** (see its `README.md`).
+
 ---
 
 ## Folder layout on disk (paper “input root”)
@@ -64,7 +66,7 @@ Versioning rules for prompts are documented in **`prompts/PROMPT_VERSIONING.md`*
 
 | Class / method | What it does |
 |----------------|----------------|
-| **`GeminiProcessor(raw_input_bundle, *, api_key=None, model_name="gemini-1.5-flash", system_instruction=None)`** | Holds the ingest bundle; resolves API key from arguments or `GOOGLE_API_KEY` / `GEMINI_API_KEY`; default system text comes from the versioned prompt loader unless overridden. |
+| **`GeminiProcessor(raw_input_bundle, *, api_key=None, model_name=None, system_instruction=None)`** | Holds the ingest bundle; resolves API key from arguments or `GOOGLE_API_KEY` / `GEMINI_API_KEY`; model from `model_name` or **`GEMINI_MODEL`** env or **`gemini-2.5-flash`**; default system text from the versioned prompt loader unless overridden. |
 | **`GeminiProcessor.process()`** | Loads images under `input_root` (paths must stay inside root), sends text + images to Gemini with `response_mime_type="application/json"`, returns a parsed `dict`. |
 
 ---

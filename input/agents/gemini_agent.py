@@ -7,7 +7,7 @@ from typing import Any
 
 from input.prompts.loader import load_gemini_flash_system_instruction
 
-_DEFAULT_MODEL = "gemini-1.5-flash"
+_DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 def _default_system_instruction() -> str:
@@ -17,7 +17,9 @@ def _default_system_instruction() -> str:
 class GeminiProcessor:
     """
     Sends ``raw_input_bundle`` text (relative paths only in the user payload) and
-    on-disk images to Gemini 1.5 Flash; returns parsed JSON (dict).
+    on-disk images to Gemini (default **gemini-2.5-flash**); returns parsed JSON (dict).
+
+    Model id: pass ``model_name=``, or set env ``GEMINI_MODEL``; otherwise ``_DEFAULT_MODEL`` is used.
     """
 
     def __init__(
@@ -25,7 +27,7 @@ class GeminiProcessor:
         raw_input_bundle: dict[str, Any],
         *,
         api_key: str | None = None,
-        model_name: str = _DEFAULT_MODEL,
+        model_name: str | None = None,
         system_instruction: str | None = None,
     ) -> None:
         self._bundle = raw_input_bundle
@@ -34,7 +36,12 @@ class GeminiProcessor:
             or os.environ.get("GOOGLE_API_KEY")
             or os.environ.get("GEMINI_API_KEY")
         )
-        self._model_name = model_name
+        if model_name is not None and model_name.strip():
+            self._model_name = model_name.strip()
+        else:
+            self._model_name = (
+                os.environ.get("GEMINI_MODEL", _DEFAULT_MODEL).strip() or _DEFAULT_MODEL
+            )
         self._system_instruction = (
             system_instruction if system_instruction is not None else _default_system_instruction()
         )
