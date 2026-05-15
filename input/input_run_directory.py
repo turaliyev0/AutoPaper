@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from autopaper.pipeline.run_directory import allocate_run_directory, sanitize_input_folder_name
+from autopaper.run_directory import allocate_run_directory, sanitize_input_folder_name
 
 
 def input_sanitize_folder_name() -> None:

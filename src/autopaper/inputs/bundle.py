@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from autopaper.inputs.folder_loader import IMAGE_SUFFIXES, TEXT_GLOB_ORDER
+from autopaper.inputs.layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER
 
 
 def _read_text_file(path: Path) -> str:
@@ -55,7 +55,7 @@ def _list_image_paths(root: Path) -> list[str]:
 
 
 def load_raw_input_bundle(root: Path) -> dict[str, Any]:
-    """Load all input text files and asset paths from an input folder (no image bytes)."""
+    """Load all text files under description/ and details/, metadata JSON, and image paths (no bytes)."""
     root = root.expanduser().resolve()
     return {
         "input_root": root.as_posix(),
@@ -64,31 +64,3 @@ def load_raw_input_bundle(root: Path) -> dict[str, Any]:
         "metadata_json_files": _collect_metadata_json(root),
         "image_paths": _list_image_paths(root),
     }
-
-
-def truncate_bundle_for_llm(bundle: dict[str, Any], max_chars_per_file: int) -> dict[str, Any]:
-    """Copy the bundle with long file bodies shortened for LLM context limits."""
-
-    def trunc_text(s: str) -> tuple[str, bool]:
-        if len(s) <= max_chars_per_file:
-            return s, False
-        return s[:max_chars_per_file] + "\n... [truncated for model context]", True
-
-    out = json.loads(json.dumps(bundle))  # simple copy
-    for key in ("description_files", "details_files"):
-        for item in out.get(key, []):
-            if isinstance(item, dict) and "content" in item:
-                text, cut = trunc_text(str(item["content"]))
-                item["content"] = text
-                if cut:
-                    item["content_was_truncated"] = True
-    for item in out.get("metadata_json_files", []):
-        if not isinstance(item, dict):
-            continue
-        raw_preview = json.dumps(item.get("parsed"), ensure_ascii=False)
-        text, cut = trunc_text(raw_preview)
-        item["parsed_json_preview"] = text
-        item.pop("parsed", None)
-        if cut:
-            item["parsed_preview_was_truncated"] = True
-    return out

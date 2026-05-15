@@ -4,40 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autopaper"
-version = "0.1.0"
-description = "Agentic multi-LLM pipeline for IEEE-style research paper generation"
+version = "0.2.0"
+description = "Read paper input folders and create per-run output directories"
 readme = "README.MD"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Auto-Paper contributors" }]
-dependencies = [
-    "httpx>=0.27",
-    "pydantic>=2.6",
-    "pydantic-settings>=2.2",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "pytest-asyncio>=0.23",
     "ruff>=0.4",
 ]
-openai = ["openai>=1.30"]
-anthropic = ["anthropic>=0.25"]
-google = ["google-generativeai>=0.5"]
 
 [project.scripts]
 autopaper = "autopaper.cli:main"
-autopaper-formalize-input = "autopaper.pipeline.formalize_input:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-autopaper = ["prompts/**/*.md", "prompts/**/*.json"]
-
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["input"]
 python_files = ["input_*.py"]
 python_functions = ["input_*"]

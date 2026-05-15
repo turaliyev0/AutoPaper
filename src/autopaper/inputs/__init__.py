@@ -1,18 +1,9 @@
-from autopaper.inputs.folder_loader import (
-    FolderLoadResult,
-    ensure_input_layout,
-    expected_subpaths,
-    load_input_folder,
-)
-from autopaper.inputs.models import PaperDraft, PaperSection, ResearchInput, SectionDraft
+from autopaper.inputs.bundle import load_raw_input_bundle
+from autopaper.inputs.layout import ensure_input_layout, expected_subpaths, verify_input_layout
 
 __all__ = [
-    "FolderLoadResult",
-    "PaperDraft",
-    "PaperSection",
-    "ResearchInput",
-    "SectionDraft",
     "ensure_input_layout",
     "expected_subpaths",
-    "load_input_folder",
+    "load_raw_input_bundle",
+    "verify_input_layout",
 ]

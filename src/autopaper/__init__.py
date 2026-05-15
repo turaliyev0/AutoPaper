@@ -1,3 +1,3 @@
-"""Auto-Paper: multi-model, agentic research paper generation."""
+"""Read paper input folders and create per-run output directories."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
