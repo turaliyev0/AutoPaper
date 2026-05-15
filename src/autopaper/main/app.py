@@ -27,9 +27,8 @@ def _resolve_root(args: argparse.Namespace) -> Path:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Ensure paper input layout, allocate <repo>/Output/execution_NNN/, write bundle + manifest, "
-            "run Gemini step 02 (image descriptions) and step 03 (restructured extraction). "
-            "Requires GOOGLE_API_KEY or GEMINI_API_KEY."
+            "Ingest paper folder → Output/execution_NNN/: raw bundle, Text Parser (02), "
+            "Vision (03), Joiner (04). Requires GOOGLE_API_KEY or GEMINI_API_KEY."
         )
     )
     parser.add_argument(

@@ -12,8 +12,18 @@ from .run_workspace import (
     write_run_manifest,
 )
 
-IMAGE_DESCRIPTIONS_FILENAME = "02_image_descriptions.json"
-AI_EXTRACTION_FILENAME = "03_ai_extraction.json"
+# Step 01: disk ingest
+RAW_BUNDLE_FILENAME = "01_raw_input_bundle.json"
+# Step 1 — Text Parser Agent
+CLEANED_TEXT_FILENAME = "02_cleaned_text.json"
+# Step 2 — Vision Agent
+CLEANED_IMAGES_FILENAME = "03_cleaned_images.json"
+# Step 3 — Joiner Agent
+FINAL_STANDARDIZED_FILENAME = "04_final_standardized.json"
+
+# Legacy aliases
+IMAGE_DESCRIPTIONS_FILENAME = CLEANED_IMAGES_FILENAME
+AI_EXTRACTION_FILENAME = FINAL_STANDARDIZED_FILENAME
 
 
 def _read_text_file(path: Path) -> str:
@@ -81,12 +91,13 @@ def run_ingest_pipeline(
     output_root: Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
-    Pipeline steps under ``<Output>/execution_NNN/``:
+    Pipeline under ``<Output>/execution_NNN/``:
 
     - **00** ``00_run_manifest.json``
-    - **01** ``01_raw_input_bundle.json``
-    - **02** ``02_image_descriptions.json`` (Gemini vision on images only)
-    - **03** ``03_ai_extraction.json`` (Gemini restructure: text + metadata + step-02 descriptions)
+    - **01** ``01_raw_input_bundle.json`` (disk)
+    - **02** ``02_cleaned_text.json`` — Text Parser Agent
+    - **03** ``03_cleaned_images.json`` — Vision Agent
+    - **04** ``04_final_standardized.json`` — Joiner Agent
 
     Returns ``(bundle, run_path)``.
     """
@@ -102,7 +113,7 @@ def run_ingest_pipeline(
 
     bundle = load_raw_input_bundle(root)
 
-    (run_path / "01_raw_input_bundle.json").write_text(
+    (run_path / RAW_BUNDLE_FILENAME).write_text(
         json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -110,25 +121,32 @@ def run_ingest_pipeline(
         run_path,
         pipeline="input_ingest",
         input_root=root,
-        extra={"steps": ["00_run_manifest.json", "01_raw_input_bundle.json"]},
+        extra={"steps": ["00_run_manifest.json", RAW_BUNDLE_FILENAME]},
     )
 
-    from input.agents.gemini_agent import GeminiProcessor
+    from input.agents.text_parser_agent import TextParserAgent
+    from input.agents.vision_agent import VisionAgent
+    from input.agents.joiner_agent import JoinerAgent
 
-    processor = GeminiProcessor(bundle)
-
-    image_descriptions = processor.describe_images()
-    (run_path / IMAGE_DESCRIPTIONS_FILENAME).write_text(
-        json.dumps(image_descriptions, ensure_ascii=False, indent=2) + "\n",
+    cleaned_text = TextParserAgent(bundle).run()
+    (run_path / CLEANED_TEXT_FILENAME).write_text(
+        json.dumps(cleaned_text, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    append_run_manifest_steps(run_path, IMAGE_DESCRIPTIONS_FILENAME)
+    append_run_manifest_steps(run_path, CLEANED_TEXT_FILENAME)
 
-    rendered = processor.render_extraction(image_descriptions)
-    (run_path / AI_EXTRACTION_FILENAME).write_text(
-        json.dumps(rendered, ensure_ascii=False, indent=2) + "\n",
+    cleaned_images = VisionAgent(bundle).run()
+    (run_path / CLEANED_IMAGES_FILENAME).write_text(
+        json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    append_run_manifest_steps(run_path, AI_EXTRACTION_FILENAME)
+    append_run_manifest_steps(run_path, CLEANED_IMAGES_FILENAME)
+
+    final = JoinerAgent().run(cleaned_text, cleaned_images)
+    (run_path / FINAL_STANDARDIZED_FILENAME).write_text(
+        json.dumps(final, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    append_run_manifest_steps(run_path, FINAL_STANDARDIZED_FILENAME)
 
     return bundle, run_path

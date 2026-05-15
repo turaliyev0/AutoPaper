@@ -39,10 +39,11 @@ These names are re-exported from `input/__init__.py`.
 
 | Name | What it does |
 |------|----------------|
-| **`IMAGE_DESCRIPTIONS_FILENAME`** | Constant: `02_image_descriptions.json` (step 02: Gemini vision on images). |
-| **`AI_EXTRACTION_FILENAME`** | Constant: `03_ai_extraction.json` (step 03: restructured text + metadata + image descriptions). |
+| **`CLEANED_TEXT_FILENAME`** | `02_cleaned_text.json` — Text Parser Agent. |
+| **`CLEANED_IMAGES_FILENAME`** | `03_cleaned_images.json` — Vision Agent. |
+| **`FINAL_STANDARDIZED_FILENAME`** | `04_final_standardized.json` — Joiner Agent. |
 | **`load_raw_input_bundle(root)`** | Walks `root`, returns a JSON-serializable `dict`: `input_root`, `description_files`, `details_files`, `metadata_json_files` (each file has `relative_path` + content or parsed JSON), and `image_paths` (relative POSIX paths only; no image bytes). |
-| **`run_ingest_pipeline(root, *, output_root=None)`** | **Orchestration:** steps 00–01 ingest; step **02** `describe_images()` → `02_image_descriptions.json`; step **03** `render_extraction()` → `03_ai_extraction.json`. Returns `(bundle, run_path)`. Requires API keys for Gemini. |
+| **`run_ingest_pipeline(root, *, output_root=None)`** | **00–01** disk ingest; **02** Text Parser; **03** Vision; **04** Joiner. Returns `(bundle, run_path)`. Requires API keys for Gemini. |
 
 ### `layout.py`
 
@@ -79,9 +80,10 @@ Versioning rules for prompts are documented in **`prompts/PROMPT_VERSIONING.md`*
 | Class / method | What it does |
 |----------------|----------------|
 | **`GeminiProcessor(raw_input_bundle, *, api_key=None, model_name=None, system_instruction=None)`** | Holds the ingest bundle; resolves API key from arguments or `GOOGLE_API_KEY` / `GEMINI_API_KEY`; model from `model_name` or **`GEMINI_MODEL`** env or **`gemini-2.5-flash`**; default system text from the versioned prompt loader unless overridden. |
-| **`GeminiProcessor.describe_images()`** | Step 02: images only → JSON with per-image descriptions. |
-| **`GeminiProcessor.render_extraction(image_descriptions)`** | Step 03: text bundle + step-02 JSON (no pixels) → restructured extraction JSON. |
-| **`GeminiProcessor.process()`** | Runs describe_images then render_extraction (both steps). |
+| **`TextParserAgent`** | Step 1: text/metadata only → cleaned text JSON. |
+| **`VisionAgent`** | Step 2: images only → cleaned image JSON. |
+| **`JoinerAgent`** | Step 3: combine + cross-reference → final standardized JSON. |
+| **`GeminiProcessor`** | Facade calling all three agents (legacy API). |
 
 ---
 
@@ -112,7 +114,8 @@ CLI: `autopaper --input /path/to/paper` (optional **`--output-dir`**). Set **`GO
 
 | File | Produced by |
 |------|-------------|
-| `00_run_manifest.json` | `run_ingest_pipeline` (step 00) |
-| `01_raw_input_bundle.json` | `run_ingest_pipeline` (step 01) |
-| `02_image_descriptions.json` | `run_ingest_pipeline` (step 02: Gemini vision) |
-| `03_ai_extraction.json` | `run_ingest_pipeline` (step 03: Gemini render) |
+| `00_run_manifest.json` | manifest |
+| `01_raw_input_bundle.json` | disk ingest |
+| `02_cleaned_text.json` | Text Parser Agent |
+| `03_cleaned_images.json` | Vision Agent |
+| `04_final_standardized.json` | Joiner Agent |
