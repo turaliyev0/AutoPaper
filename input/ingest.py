@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
-from .run_workspace import allocate_execution_directory, append_run_manifest_steps, write_run_manifest
+from .run_workspace import (
+    allocate_execution_directory,
+    append_run_manifest_steps,
+    resolve_pipeline_output_root,
+    write_run_manifest,
+)
 
 AI_EXTRACTION_FILENAME = "02_ai_extraction.json"
 
@@ -72,12 +77,13 @@ def load_raw_input_bundle(root: Path) -> dict[str, Any]:
 def run_ingest_pipeline(
     root: Path,
     *,
-    process_ai: bool = True,
+    output_root: Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
-    Resolve ``root``, ensure subfolders exist, allocate ``output/execution_NNN/``,
-    write ``01_raw_input_bundle.json`` and ``00_run_manifest.json``, then by default
-    run Gemini and write ``02_ai_extraction.json`` (unless ``process_ai`` is false).
+    Resolve ``root``, ensure subfolders exist, allocate ``<Output>/execution_NNN/``
+    (see :func:`input.run_workspace.resolve_pipeline_output_root`), write
+    ``01_raw_input_bundle.json`` and ``00_run_manifest.json``, run Gemini,
+    and write ``02_ai_extraction.json``.
 
     Returns ``(bundle, run_path)``.
     """
@@ -87,7 +93,9 @@ def run_ingest_pipeline(
 
     ensure_input_layout(root)
 
-    run_path = allocate_execution_directory(root)
+    run_path = allocate_execution_directory(
+        resolve_pipeline_output_root(override=output_root),
+    )
 
     bundle = load_raw_input_bundle(root)
 
@@ -102,15 +110,14 @@ def run_ingest_pipeline(
         extra={"steps": ["00_run_manifest.json", "01_raw_input_bundle.json"]},
     )
 
-    if process_ai:
-        from input.agents.gemini_agent import GeminiProcessor
+    from input.agents.gemini_agent import GeminiProcessor
 
-        processor = GeminiProcessor(bundle)
-        processed = processor.process()
-        (run_path / AI_EXTRACTION_FILENAME).write_text(
-            json.dumps(processed, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        append_run_manifest_steps(run_path, AI_EXTRACTION_FILENAME)
+    processor = GeminiProcessor(bundle)
+    processed = processor.process()
+    (run_path / AI_EXTRACTION_FILENAME).write_text(
+        json.dumps(processed, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    append_run_manifest_steps(run_path, AI_EXTRACTION_FILENAME)
 
     return bundle, run_path

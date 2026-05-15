@@ -1,0 +1,5 @@
+Subject: Sprague-Dawley rats (n=8).
+Implant: 32-channel polyimide-buffered probes.
+Data Acquisition: 30 kHz sampling rate, 500 Hz high-pass filter.
+Calibration: Daily impedance spectroscopy at 1 kHz.
+Control: Left hemisphere (uncoated), Right hemisphere (coated).

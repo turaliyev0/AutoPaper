@@ -9,6 +9,7 @@ from .layout import (
 from .run_workspace import (
     allocate_execution_directory,
     append_run_manifest_steps,
+    resolve_pipeline_output_root,
     utc_now_iso,
     write_run_manifest,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "ensure_input_layout",
     "expected_subpaths",
     "load_raw_input_bundle",
+    "resolve_pipeline_output_root",
     "run_ingest_pipeline",
     "utc_now_iso",
     "verify_input_layout",

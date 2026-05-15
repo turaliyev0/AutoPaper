@@ -10,5 +10,8 @@ dist/
 build/
 paper_draft.md
 
-# Example paper runs (generated under examples/*/output/)
+# Pipeline runs (repo root Output/ or AUTOPAPER_OUTPUT_DIR)
+Output/
+
+# Legacy per-input output (no longer written by default)
 examples/**/output/

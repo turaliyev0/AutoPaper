@@ -27,8 +27,9 @@ def _resolve_root(args: argparse.Namespace) -> Path:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Ensure paper input layout, allocate output/execution_NNN/, write bundle + manifest; "
-            "run Gemini by default (use --no-ai to skip)."
+            "Ensure paper input layout, allocate <repo>/Output/execution_NNN/ (or AUTOPAPER_OUTPUT_DIR), "
+            "write bundle + manifest, run Gemini, and write 02_ai_extraction.json "
+            "(requires GOOGLE_API_KEY or GEMINI_API_KEY)."
         )
     )
     parser.add_argument(
@@ -37,16 +38,17 @@ def main(argv: list[str] | None = None) -> None:
         help="Paper project folder. If omitted, prompts when TTY.",
     )
     parser.add_argument(
-        "--no-ai",
-        action="store_true",
-        help="Skip Gemini; only write 01_raw_input_bundle.json (no 02_ai_extraction.json).",
+        "--output-dir",
+        default=None,
+        help="Folder that will contain execution_NNN/ (default: <repo>/Output or AUTOPAPER_OUTPUT_DIR).",
     )
     args = parser.parse_args(argv)
 
     root = _resolve_root(args)
+    out_arg = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
 
     try:
-        _, run_path = run_ingest_pipeline(root, process_ai=not args.no_ai)
+        _, run_path = run_ingest_pipeline(root, output_root=out_arg)
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc

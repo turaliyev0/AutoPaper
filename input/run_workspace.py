@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,14 +11,28 @@ from typing import Any
 _EXECUTION_DIR_PATTERN = re.compile(r"^execution_(\d+)$", re.IGNORECASE)
 
 
-def allocate_execution_directory(input_root: Path) -> Path:
+def resolve_pipeline_output_root(*, override: Path | None = None) -> Path:
     """
-    Create ``<input_root>/output/execution_NNN/`` where ``NNN`` is zero-padded
-    (``execution_001``, ``execution_002``, …): one greater than the highest
-    existing ``execution_<number>`` directory under ``output/``.
+    Directory that will contain ``execution_NNN/`` run folders.
+
+    Resolution order: ``override`` argument, then env ``AUTOPAPER_OUTPUT_DIR``,
+    then ``<repo>/Output`` (repository root is the parent of the ``input`` package).
     """
-    input_root = input_root.expanduser().resolve()
-    out = input_root / "output"
+    if override is not None:
+        return override.expanduser().resolve()
+    raw = os.environ.get("AUTOPAPER_OUTPUT_DIR", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return Path(__file__).resolve().parent.parent / "Output"
+
+
+def allocate_execution_directory(output_root: Path) -> Path:
+    """
+    Under ``output_root``, create ``execution_NNN/`` where ``NNN`` is zero-padded
+    (``execution_001``, ``execution_002``, …): one greater than the highest existing
+    ``execution_<number>`` directory already under ``output_root``.
+    """
+    out = output_root.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
     max_num = 0
     for p in out.iterdir():

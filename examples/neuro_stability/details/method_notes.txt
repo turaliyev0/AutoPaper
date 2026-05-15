@@ -1,0 +1,25 @@
+{
+  "project_title": "Chronic Stability in Neuro-Prosthetic Interfaces: Material and Biological Barriers",
+  "authors": [
+    {
+      "name": "Turaliyev",
+      "affiliation": "Inha University, IT Engineering",
+      "role": "Lead Researcher"
+    }
+  ],
+  "target_journal": "Nature Biomedical Engineering",
+  "manuscript_details": {
+    "word_count_estimate": 4500,
+    "language": "en",
+    "version": "2.1.0",
+    "submission_track": "Original Research Article"
+  },
+  "technical_tags": {
+    "domain": "Neural Engineering",
+    "sub_domain": "Bioelectronics",
+    "methodology": "In vivo Electrophysiology",
+    "materials": ["Polyimide", "Silicon", "PEDOT:PSS"]
+  },
+  "data_availability": "Available upon request via corresponding author",
+  "contact": "turaliyev@inha.ac.kr"
+}

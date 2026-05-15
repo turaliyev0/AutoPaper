@@ -4,16 +4,14 @@ Minimal layout for **`autopaper`**: `description/`, `details/`, `images/`, `meta
 
 ## Try it
 
-From the **repository root** (with the project installed: `pip install -e .`):
+From the **repository root** (with the project installed: `python -m pip install -e .`):
 
 ```bash
-# Ingest + manifest only (no Gemini API call)
-autopaper --input examples/sample_paper_input --no-ai
-
-# Full pipeline including Gemini (needs GOOGLE_API_KEY or GEMINI_API_KEY)
 autopaper --input examples/sample_paper_input
 ```
 
-Each run creates **`examples/sample_paper_input/output/execution_NNN/`** with `01_raw_input_bundle.json`, `00_run_manifest.json`, and (unless `--no-ai`) `02_ai_extraction.json`.
+Requires **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** in the environment (export in your shell or use your IDE env).
 
-`examples/**/output/` is gitignored so local runs do not clutter commits.
+Each run writes artifacts under **`<repo>/Output/execution_NNN/`** at the AutoPaper project root (not inside this folder). The manifest still records the paper folder as **`input_root`**.
+
+`Output/` at repo root is gitignored so local runs do not clutter commits.
