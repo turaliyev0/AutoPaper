@@ -27,8 +27,9 @@ def _resolve_root(args: argparse.Namespace) -> Path:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Ingest paper folder → Output/execution_NNN/: raw bundle, Text Parser (02), "
-            "Vision (03), Joiner (04). Requires GOOGLE_API_KEY or GEMINI_API_KEY."
+            "Ingest paper folder → output/execution_NNN/: raw bundle, Text Parser (02), "
+            "Vision (03), Joiner (04). Requires GOOGLE_API_KEY or GEMINI_API_KEY. "
+            "Flow: src/autopaper/flow/README.md"
         )
     )
     parser.add_argument(
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--output-dir",
         default=None,
-        help="Folder that will contain execution_NNN/ (default: <repo>/Output or AUTOPAPER_OUTPUT_DIR).",
+        help="Folder that will contain execution_NNN/ (default: <repo>/output or AUTOPAPER_OUTPUT_DIR).",
     )
     args = parser.parse_args(argv)
 

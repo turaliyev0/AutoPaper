@@ -91,7 +91,7 @@ def run_ingest_pipeline(
     output_root: Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
-    Pipeline under ``<Output>/execution_NNN/``:
+    Pipeline under ``<output>/execution_NNN/`` (diagram: ``src/autopaper/flow/README.md``):
 
     - **00** ``00_run_manifest.json``
     - **01** ``01_raw_input_bundle.json`` (disk)

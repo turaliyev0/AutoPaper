@@ -10,8 +10,8 @@ dist/
 build/
 paper_draft.md
 
-# Pipeline runs (repo root Output/ or AUTOPAPER_OUTPUT_DIR)
-Output/
+# Pipeline runs (repo root output/ or AUTOPAPER_OUTPUT_DIR)
+output/
 
 # Legacy per-input output (no longer written by default)
 examples/**/output/

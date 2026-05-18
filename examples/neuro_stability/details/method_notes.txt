@@ -1,25 +1,40 @@
-{
-  "project_title": "Chronic Stability in Neuro-Prosthetic Interfaces: Material and Biological Barriers",
-  "authors": [
-    {
-      "name": "Turaliyev",
-      "affiliation": "Inha University, IT Engineering",
-      "role": "Lead Researcher"
-    }
-  ],
-  "target_journal": "Nature Biomedical Engineering",
-  "manuscript_details": {
-    "word_count_estimate": 4500,
-    "language": "en",
-    "version": "2.1.0",
-    "submission_track": "Original Research Article"
-  },
-  "technical_tags": {
-    "domain": "Neural Engineering",
-    "sub_domain": "Bioelectronics",
-    "methodology": "In vivo Electrophysiology",
-    "materials": ["Polyimide", "Silicon", "PEDOT:PSS"]
-  },
-  "data_availability": "Available upon request via corresponding author",
-  "contact": "turaliyev@inha.ac.kr"
-}
+================================================================================
+EXPERIMENTAL PARAMETERS AND METHODOLOGY
+================================================================================
+
+SUBJECT MODEL:
+- Species: Sprague-Dawley rats (n=12)
+- Age: 8-10 weeks
+- Weight: 250-300g
+
+IMPLANT CONFIGURATION (Hemispheric Control Design):
+- CONTROL GROUP (Left Hemisphere): Rigid Silicon Probes (Standard Utah-style geometry).
+- TEST GROUP (Right Hemisphere): Polyimide-coated Flexible Thin-film Probes.
+- Channel Count: 32 channels per hemisphere.
+
+MECHANICAL PROPERTIES:
+- Silicon Probe Young's Modulus: ~180 GPa.
+- Polyimide Probe Young's Modulus: ~3 GPa.
+- Brain Tissue Stiffness Reference: ~1-30 kPa.
+
+MATERIAL AND COATING SPECIFICATIONS:
+- Substrate Material: Polyimide (PI-2611) with 50µm total thickness.
+- Conductive Sites: Gold (Au) micro-electrodes with PEDOT:PSS electrochemical coating.
+- Coating Purpose: To lower 1 kHz impedance and increase the effective surface area for charge injection.
+
+DATA ACQUISITION AND SIGNAL PROCESSING:
+- Sampling Frequency: 30 kHz per channel.
+- Hardware: Intan Technologies RHD2000 series.
+- Filtering: Digital 500 Hz high-pass filter applied for spike detection.
+- Monitoring Frequency: Daily recording sessions (30 mins each) under resting state.
+
+METRICS FOR ANALYSIS:
+1. Signal-to-Noise Ratio (SNR): Defined as V_peak-to-peak / (2 * RMS_noise).
+2. Electrochemical Impedance Spectroscopy (EIS): Weekly sweeps from 10 Hz to 100 kHz.
+3. Histological Analysis: Post-mortem slice staining (GFAP and NeuN) to quantify glial scarring and neuronal density at the 180-day mark.
+
+PROCEDURE NOTES:
+- Implantation via stereotaxic surgery under isoflurane anesthesia.
+- Post-operative care included 7 days of antibiotics and analgesics.
+- Calibration of impedance spectroscopy performed daily at 1 kHz to ensure electrode integrity.
+================================================================================

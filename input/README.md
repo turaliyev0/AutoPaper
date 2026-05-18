@@ -2,6 +2,8 @@
 
 Top-level Python package for **paper project folders**: expected directory layout, loading files into a **raw bundle**, allocating **per-run output** directories, **versioned prompts**, and a **Gemini** post-processing step.
 
+**Pipeline diagram and step list:** [`src/autopaper/flow/README.md`](../src/autopaper/flow/README.md) — update that file whenever `run_ingest_pipeline` or run artifacts change.
+
 Install the project from the repo root:
 
 ```bash
@@ -27,7 +29,7 @@ A ready-made sample you can run against lives at **`examples/sample_paper_input/
 | `images/` | Raster/vector images allowed by `IMAGE_SUFFIXES` in `layout.py`. |
 | `metadata/` | `*.json` files (parsed or error-wrapped in the bundle). |
 
-Run artifacts are written under **`<AutoPaper repo>/Output/execution_NNN/`** (capital **`Output`** next to `input/`, `src/`, etc.). The next run uses one plus the highest existing `execution_<number>` folder there. Override with env **`AUTOPAPER_OUTPUT_DIR`**, the **`output_root`** argument to **`run_ingest_pipeline`**, or CLI **`--output-dir`**.
+Run artifacts are written under **`<AutoPaper repo>/output/execution_NNN/`** (folder **`output`** next to `input/`, `src/`, etc.). The next run uses one plus the highest existing `execution_<number>` folder there. Override with env **`AUTOPAPER_OUTPUT_DIR`**, the **`output_root`** argument to **`run_ingest_pipeline`**, or CLI **`--output-dir`**.
 
 ---
 
@@ -59,7 +61,7 @@ These names are re-exported from `input/__init__.py`.
 
 | Function | What it does |
 |----------|----------------|
-| **`resolve_pipeline_output_root(*, override=None)`** | Resolves the base folder for `execution_NNN/`: `override`, then **`AUTOPAPER_OUTPUT_DIR`**, then **`<repo>/Output`**. |
+| **`resolve_pipeline_output_root(*, override=None)`** | Resolves the base folder for `execution_NNN/`: `override`, then **`AUTOPAPER_OUTPUT_DIR`**, then **`<repo>/output`**. |
 | **`allocate_execution_directory(output_root)`** | Creates `<output_root>/execution_NNN/` with the next integer `NNN` (zero-padded) after the highest existing `execution_<number>` under `output_root`. Retries on `FileExistsError`. |
 | **`utc_now_iso()`** | Current UTC timestamp as ISO string (used in manifests). |
 | **`write_run_manifest(run_dir, *, pipeline, input_root, extra=None)`** | Writes `00_run_manifest.json` with pipeline id, paths, time, and optional extra fields (for example `steps`). |
@@ -79,7 +81,7 @@ Versioning rules for prompts are documented in **`prompts/PROMPT_VERSIONING.md`*
 
 | Class / method | What it does |
 |----------------|----------------|
-| **`GeminiProcessor(raw_input_bundle, *, api_key=None, model_name=None, system_instruction=None)`** | Holds the ingest bundle; resolves API key from arguments or `GOOGLE_API_KEY` / `GEMINI_API_KEY`; model from `model_name` or **`GEMINI_MODEL`** env or **`gemini-2.5-flash`**; default system text from the versioned prompt loader unless overridden. |
+| **`GeminiProcessor(raw_input_bundle, *, api_key=None, model_name=None, system_instruction=None)`** | Holds the ingest bundle; resolves API key from arguments or repo **`.env`** (`GOOGLE_API_KEY` / `GEMINI_API_KEY`); model from `model_name` or **`GEMINI_MODEL`** in **`.env`** (required if not passed); default system text from the versioned prompt loader unless overridden. |
 | **`TextParserAgent`** | Step 1: text/metadata only → cleaned text JSON. |
 | **`VisionAgent`** | Step 2: images only → cleaned image JSON. |
 | **`JoinerAgent`** | Step 3: combine + cross-reference → final standardized JSON. |
@@ -106,7 +108,7 @@ root = Path("/path/to/paper-folder")
 bundle, run_dir = run_ingest_pipeline(root)
 ```
 
-CLI: `autopaper --input /path/to/paper` (optional **`--output-dir`**). Set **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`**. Optional **`AUTOPAPER_OUTPUT_DIR`** for a non-default base folder.
+CLI: `autopaper --input /path/to/paper` (optional **`--output-dir`**). Set **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** and **`GEMINI_MODEL`** in the repo **`.env`**. Optional **`AUTOPAPER_OUTPUT_DIR`** for a non-default base folder.
 
 ---
 
