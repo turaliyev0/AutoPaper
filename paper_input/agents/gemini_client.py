@@ -7,39 +7,12 @@ import os
 from pathlib import Path
 from typing import Any
 
-_dotenv_loaded = False
-
-
-def _repo_root() -> Path:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        if (parent / "pyproject.toml").is_file():
-            return parent
-    return here.parents[2]
-
+from paper_input.agent_env import PaperInputAgent, model_var, resolve_api_key, resolve_model
 
 def _load_repo_dotenv() -> None:
-    """Load ``<repo>/.env`` into ``os.environ`` (does not override existing vars)."""
-    global _dotenv_loaded
-    if _dotenv_loaded:
-        return
-    _dotenv_loaded = True
-    env_file = _repo_root() / ".env"
-    if not env_file.is_file():
-        return
-    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+    from paper_input.agent_env import _load_repo_dotenv as _load
+
+    _load()
 
 
 def _make_client(api_key: str):
@@ -65,32 +38,22 @@ def _list_flash_model_ids(api_key: str) -> list[str]:
     return sorted(out)
 
 
-def resolve_model_name(model_name: str | None = None) -> str:
-    """
-    Model id from ``model_name`` argument or ``GEMINI_MODEL`` in ``.env`` / environment.
-
-    No built-in fallback models — set ``GEMINI_MODEL`` in the repo ``.env``.
-    """
+def resolve_model_name(
+    model_name: str | None = None,
+    *,
+    agent: PaperInputAgent,
+) -> str:
     _load_repo_dotenv()
-    if model_name is not None and model_name.strip():
-        return model_name.strip()
-    env_model = os.environ.get("GEMINI_MODEL", "").strip()
-    if env_model:
-        return env_model
-    raise RuntimeError(
-        "Missing model: set GEMINI_MODEL in the repository .env (or pass model_name=...)."
-    )
+    return resolve_model(agent, override=model_name)
 
 
-def resolve_api_key(api_key: str | None = None) -> str:
+def resolve_api_key_for_agent(
+    api_key: str | None,
+    *,
+    agent: PaperInputAgent,
+) -> str:
     _load_repo_dotenv()
-    key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "Missing API key: set GOOGLE_API_KEY or GEMINI_API_KEY in .env "
-            "(or pass api_key=...)."
-        )
-    return key
+    return resolve_api_key(agent, override=api_key)
 
 
 def input_root_from_bundle(bundle: dict[str, Any]) -> Path:
@@ -176,6 +139,7 @@ def generate_json(
     *,
     system_instruction: str,
     content_parts: list[Any],
+    agent: PaperInputAgent,
     api_key: str | None = None,
     model_name: str | None = None,
 ) -> dict[str, Any]:
@@ -186,9 +150,9 @@ def generate_json(
             "google-genai is required. Install with: pip install google-genai"
         ) from exc
 
-    key = resolve_api_key(api_key)
+    key = resolve_api_key_for_agent(api_key, agent=agent)
     client = _make_client(key)
-    resolved = resolve_model_name(model_name)
+    resolved = resolve_model_name(model_name, agent=agent)
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
         response_mime_type="application/json",
@@ -207,7 +171,7 @@ def generate_json(
             raise RuntimeError(
                 f"Model {resolved!r} is not available for generateContent on this API key. "
                 f"Flash models you can use include: {hint}. "
-                f"Set GEMINI_MODEL in .env to one of these."
+                f"Set {model_var(agent)} in .env to one of these."
             ) from exc
         raise
     text = _response_text(response)

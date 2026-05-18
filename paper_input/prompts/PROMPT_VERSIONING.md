@@ -1,6 +1,6 @@
 # Prompt versioning (project-wide)
 
-Every prompt **family** (one model / one role) gets its own directory under `input/prompts/<family_name>/`:
+Every prompt **family** (one model / one role) gets its own directory under `paper_input/prompts/<family_name>/`:
 
 | Path | Purpose |
 |------|---------|

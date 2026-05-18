@@ -16,7 +16,7 @@ def resolve_pipeline_output_root(*, override: Path | None = None) -> Path:
     Directory that will contain ``execution_NNN/`` run folders.
 
     Resolution order: ``override`` argument, then env ``AUTOPAPER_OUTPUT_DIR``,
-    then ``<repo>/output`` (repository root is the parent of the ``input`` package).
+    then ``<repo>/output`` (repository root is the parent of the ``paper_input`` package).
     """
     if override is not None:
         return override.expanduser().resolve()

@@ -91,7 +91,7 @@ def run_ingest_pipeline(
     output_root: Path | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
-    Pipeline under ``<output>/execution_NNN/`` (diagram: ``src/autopaper/flow/README.md``):
+    Pipeline under ``<output>/execution_NNN/`` (diagram: ``src/autopaper/flow/paper_input/README.md``):
 
     - **00** ``00_run_manifest.json``
     - **01** ``01_raw_input_bundle.json`` (disk)
@@ -124,9 +124,9 @@ def run_ingest_pipeline(
         extra={"steps": ["00_run_manifest.json", RAW_BUNDLE_FILENAME]},
     )
 
-    from input.agents.text_parser_agent import TextParserAgent
-    from input.agents.vision_agent import VisionAgent
-    from input.agents.joiner_agent import JoinerAgent
+    from paper_input.agents.text_parser_agent import TextParserAgent
+    from paper_input.agents.vision_agent import VisionAgent
+    from paper_input.agents.joiner_agent import JoinerAgent
 
     cleaned_text = TextParserAgent(bundle).run()
     (run_path / CLEANED_TEXT_FILENAME).write_text(

@@ -1,4 +1,4 @@
-"""Load versioned prompts from ``input/prompts/<family>/current.md``."""
+"""Load versioned prompts from ``paper_input/prompts/<family>/current.md``."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ _PROMPTS_ROOT = Path(__file__).resolve().parent
 
 
 def prompts_root() -> Path:
-    """Root directory of the ``input.prompts`` package (contains per-family folders)."""
+    """Root directory of the ``paper_input.prompts`` package (contains per-family folders)."""
     return _PROMPTS_ROOT
 
 

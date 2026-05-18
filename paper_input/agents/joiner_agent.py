@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from input.prompts.loader import load_joiner_instruction
+from paper_input.agent_env import PaperInputAgent
+from paper_input.prompts.loader import load_joiner_instruction
 
 from .gemini_client import generate_json
 
@@ -37,6 +38,7 @@ class JoinerAgent:
         return generate_json(
             system_instruction=load_joiner_instruction(),
             content_parts=[user_message],
+            agent=PaperInputAgent.JOINER,
             api_key=self._api_key,
             model_name=self._model_name,
         )

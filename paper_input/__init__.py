@@ -1,4 +1,4 @@
-"""Paper input: layout, loading, run workspace, ingest, agents, prompts (all under this package)."""
+"""Paper input rendering: layout, ingest, Gemini agents, and versioned prompts."""
 
 from .ingest import (
     AI_EXTRACTION_FILENAME,

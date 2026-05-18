@@ -6,7 +6,7 @@ import sys
 from importlib import import_module
 from pathlib import Path
 
-from input.ingest import run_ingest_pipeline
+from paper_input.ingest import run_ingest_pipeline
 
 _builtin_input = import_module("builtins").input
 
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> None:
         description=(
             "Ingest paper folder → output/execution_NNN/: raw bundle, Text Parser (02), "
             "Vision (03), Joiner (04). Requires GOOGLE_API_KEY or GEMINI_API_KEY. "
-            "Flow: src/autopaper/flow/README.md"
+            "Flow: src/autopaper/flow/paper_input/README.md"
         )
     )
     parser.add_argument(

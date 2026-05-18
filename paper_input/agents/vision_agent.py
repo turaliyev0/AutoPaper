@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from input.prompts.loader import load_vision_instruction
+from paper_input.agent_env import PaperInputAgent
+from paper_input.prompts.loader import load_vision_instruction
 
 from .gemini_client import generate_json, load_images_from_bundle
 
@@ -59,6 +60,7 @@ class VisionAgent:
         result = generate_json(
             system_instruction=load_vision_instruction(),
             content_parts=content_parts,
+            agent=PaperInputAgent.VISION,
             api_key=self._api_key,
             model_name=self._model_name,
         )

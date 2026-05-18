@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from input.prompts.loader import load_text_parser_instruction
+from paper_input.agent_env import PaperInputAgent
+from paper_input.prompts.loader import load_text_parser_instruction
 
 from .gemini_client import generate_json
 
@@ -38,6 +39,7 @@ class TextParserAgent:
         return generate_json(
             system_instruction=load_text_parser_instruction(),
             content_parts=[user_message],
+            agent=PaperInputAgent.TEXT_PARSER,
             api_key=self._api_key,
             model_name=self._model_name,
         )

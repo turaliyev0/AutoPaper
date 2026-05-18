@@ -1,0 +1,4 @@
+You are an expert developer building a Multi-Agent Research Orchestrator.
+Tech Stack: Python, Asyncio, OpenAI API (GPT-4o as Orchestrator), Google Gen AI API (Gemini as Explorer), Anthropic API (Claude as Analyst).
+Coding Style: Modular, type-hinted, strict JSON validation using Pydantic, clean error handling for API timeouts.
+Always ensure the Orchestrator's JSON output matches the defined project schema perfectly.

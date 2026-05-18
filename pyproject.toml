@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autopaper"
-version = "0.2.1"
+version = "0.3.0"
 description = "Read paper input folders and create per-run output directories"
 readme = "README.MD"
 requires-python = ">=3.11"
@@ -23,14 +23,15 @@ dev = [
 
 [project.scripts]
 autopaper = "autopaper.main.app:main"
+research = "research.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["autopaper*", "input*"]
+include = ["autopaper*", "paper_input*", "research*"]
 
 [tool.setuptools.package-data]
-input = ["prompts/**/*.md"]
-autopaper = ["flow/*.md"]
+paper_input = ["prompts/**/*.md"]
+autopaper = ["flow/**/*.md"]
 
 [tool.ruff]
 line-length = 100

@@ -10,7 +10,7 @@ From the **repository root** (with the project installed: `python -m pip install
 autopaper --input examples/sample_paper_input
 ```
 
-Requires **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** in the environment (export in your shell or use your IDE env).
+Requires **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** and **`GEMINI_MODEL`** in `.env`.
 
 Each run writes under **`<repo>/output/execution_NNN/`**: `01_raw_input_bundle.json`, `02_cleaned_text.json`, `03_cleaned_images.json`, `04_final_standardized.json`, plus `00_run_manifest.json`.
 
