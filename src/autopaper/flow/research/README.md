@@ -40,19 +40,18 @@ research "Your research goal"
 
 ---
 
-## Environment (per agent)
+## Environment
 
-| Agent | API key | Model / options |
-|-------|---------|-----------------|
-| Orchestrator | `RESEARCH_ORCHESTRATOR_API_KEY` | `RESEARCH_ORCHESTRATOR_MODEL` |
-| Gemini search | `RESEARCH_GEMINI_SEARCH_API_KEY` | `RESEARCH_GEMINI_SEARCH_MODEL` |
-| Claude search | `RESEARCH_CLAUDE_SEARCH_API_KEY` | `RESEARCH_CLAUDE_SEARCH_MODEL` |
-| Exa search | `RESEARCH_EXA_SEARCH_API_KEY` or `EXA_API_KEY` | `EXA_SEARCH_TYPE`, `EXA_NUM_RESULTS` |
-| Report synthesizer | `RESEARCH_REPORT_SYNTHESIZER_API_KEY` | `RESEARCH_REPORT_SYNTHESIZER_MODEL` |
+One API key per provider in repo root `.env`; set a separate `*_MODEL` when an agent uses a different model.
 
-Legacy fallbacks: `RESEARCH_GATHERER_*`, `RESEARCH_ANALYST_*`, `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`.
+| Provider | API key | Model variables |
+|----------|---------|-----------------|
+| Google (paper_input + gemini_search) | `GOOGLE_API_KEY` | `PAPER_INPUT_*_MODEL`, `RESEARCH_GEMINI_SEARCH_MODEL` |
+| OpenAI (orchestrator) | `OPENAI_API_KEY` | `RESEARCH_ORCHESTRATOR_MODEL` |
+| Anthropic (claude_search + synthesizer) | `ANTHROPIC_API_KEY` | `RESEARCH_CLAUDE_SEARCH_MODEL`, `RESEARCH_REPORT_SYNTHESIZER_MODEL` |
+| Exa | `EXA_API_KEY` | `EXA_SEARCH_TYPE`, `EXA_NUM_RESULTS` |
 
-Put secrets in `.env` only — do not commit API keys in `exa.txt`.
+Optional per-agent `RESEARCH_*_API_KEY` overrides still work. Do not commit `.env`.
 
 ---
 

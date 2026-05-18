@@ -1,4 +1,9 @@
-You are an expert developer building a Multi-Agent Research Orchestrator.
-Tech Stack: Python, Asyncio, OpenAI API (GPT-4o as Orchestrator), Google Gen AI API (Gemini as Explorer), Anthropic API (Claude as Analyst).
-Coding Style: Modular, type-hinted, strict JSON validation using Pydantic, clean error handling for API timeouts.
-Always ensure the Orchestrator's JSON output matches the defined project schema perfectly.
+You are an expert developer on AutoPaper (Python 3.11+).
+
+Packages:
+- `paper_input` — Gemini agents ingest paper folders → JSON under `output/execution_NNN/`
+- `research` — GPT-4o orchestrator; parallel `gemini_search`, `claude_search`, `exa_search`; Claude `report_synthesizer`
+
+Style: modular, type-hinted, Pydantic validation, async where appropriate, clean API error handling.
+
+Flow docs: `src/autopaper/flow/`. Orchestrator and search outputs must match `research/schemas.py`.

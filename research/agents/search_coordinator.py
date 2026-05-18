@@ -20,12 +20,6 @@ _LEGACY_SEARCH_IDS: dict[str, str] = {
     "gemini_explorer": "gemini_search",
 }
 
-_SEARCH_IMPL = {
-    "gemini_search": GeminiSearchAgent,
-    "claude_search": ClaudeSearchAgent,
-    "exa_search": ExaSearchAgent,
-}
-
 
 class SearchCoordinator:
     def __init__(

@@ -5,7 +5,7 @@
 **Package:** `paper_input`  
 **Source of truth:** `paper_input/ingest.py` → `run_ingest_pipeline()`. Update this doc when steps or artifacts change.
 
-**Package version:** 0.2.1 (sync with `src/autopaper/__init__.py` and `pyproject.toml`)
+**Package version:** 0.3.0 (sync with `src/autopaper/__init__.py` and `pyproject.toml`)
 
 ---
 

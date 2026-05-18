@@ -21,10 +21,6 @@ CLEANED_IMAGES_FILENAME = "03_cleaned_images.json"
 # Step 3 — Joiner Agent
 FINAL_STANDARDIZED_FILENAME = "04_final_standardized.json"
 
-# Legacy aliases
-IMAGE_DESCRIPTIONS_FILENAME = CLEANED_IMAGES_FILENAME
-AI_EXTRACTION_FILENAME = FINAL_STANDARDIZED_FILENAME
-
 
 def _read_text_file(path: Path) -> str:
     try:

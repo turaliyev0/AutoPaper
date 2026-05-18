@@ -58,7 +58,3 @@ class ReportSynthesizer:
         title = plan.research_goal.main_topic
         logger.info("Report generated (%d chars)", len(markdown))
         return SynthesisReport(title=title, markdown_body=markdown)
-
-
-# Backward-compatible alias
-SynthesisAnalyst = ReportSynthesizer

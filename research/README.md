@@ -16,4 +16,4 @@ pip install -r requirements.txt
 research "Your research goal"
 ```
 
-Configure each agent in repo root `.env` — see `.env.example`.
+Configure repo root `.env` (shared provider keys + per-agent models).

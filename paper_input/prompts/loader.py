@@ -34,20 +34,9 @@ def load_joiner_instruction() -> str:
     return _load_family_prompt("gemini_joiner")
 
 
-def load_gemini_flash_system_instruction() -> str:
-    """Deprecated alias for joiner prompt (use :func:`load_joiner_instruction`)."""
-    return load_joiner_instruction()
-
-
-def load_gemini_image_description_instruction() -> str:
-    """Deprecated alias for vision prompt (use :func:`load_vision_instruction`)."""
-    return load_vision_instruction()
-
-
-def list_gemini_flash_system_archive_versions() -> list[str]:
-    """Sorted archive filenames under ``gemini_joiner/archive/`` (or legacy ``gemini_flash_system``)."""
-    for family in ("gemini_joiner", "gemini_flash_system"):
-        archive = _PROMPTS_ROOT / family / "archive"
-        if archive.is_dir():
-            return sorted(p.name for p in archive.glob("v*.md"))
-    return []
+def list_prompt_archive_versions(family: str) -> list[str]:
+    """Sorted archive filenames under ``<family>/archive/`` (e.g. ``v001.md``)."""
+    archive = _PROMPTS_ROOT / family / "archive"
+    if not archive.is_dir():
+        return []
+    return sorted(p.name for p in archive.glob("v*.md"))

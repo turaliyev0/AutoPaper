@@ -1,11 +1,7 @@
-# AutoPaper — install everything: pip install -r requirements.txt
-# Python 3.11+
+# AutoPaper — pip install -r requirements.txt  (Python 3.11+)
 
-# --- Paper input rendering (paper_input / autopaper) ---
 google-genai>=1.0.0
 pillow>=10.0.0
-
-# --- Multi-agent research (research/) ---
 python-dotenv>=1.0.0
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
@@ -13,8 +9,7 @@ openai>=1.40.0
 anthropic>=0.34.0
 exa-py>=1.0.0
 tenacity>=8.3.0
+pytest>=8.0
+ruff>=0.4
 
-# --- Editable install (CLI: autopaper, research) ---
 -e .
-
-# --- Dev (optional): pip install -r requirements-dev.txt ---

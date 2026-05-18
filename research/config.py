@@ -143,23 +143,21 @@ class Settings(BaseSettings):
     def validate_keys(self) -> None:
         missing: list[str] = []
         if not self.orchestrator_api_key:
-            missing.append("RESEARCH_ORCHESTRATOR_API_KEY (or OPENAI_API_KEY)")
+            missing.append("OPENAI_API_KEY")
         if not self.gemini_search_api_key:
-            missing.append(
-                "RESEARCH_GEMINI_SEARCH_API_KEY (or RESEARCH_GATHERER_API_KEY / GOOGLE_API_KEY)"
-            )
+            missing.append("GOOGLE_API_KEY")
         if not self.claude_search_api_key:
-            missing.append(
-                "RESEARCH_CLAUDE_SEARCH_API_KEY (or ANTHROPIC_API_KEY)"
-            )
+            missing.append("ANTHROPIC_API_KEY")
         if not self.exa_search_api_key:
-            missing.append("RESEARCH_EXA_SEARCH_API_KEY (or EXA_API_KEY)")
+            missing.append("EXA_API_KEY")
         if not self.report_synthesizer_api_key:
-            missing.append(
-                "RESEARCH_REPORT_SYNTHESIZER_API_KEY (or RESEARCH_ANALYST_API_KEY)"
-            )
+            missing.append("ANTHROPIC_API_KEY")
         if missing:
-            raise ValueError(f"Missing required API keys: {', '.join(missing)}")
+            seen: list[str] = []
+            for name in missing:
+                if name not in seen:
+                    seen.append(name)
+            raise ValueError(f"Missing required API keys in .env: {', '.join(seen)}")
 
 
 def load_settings(env_path: Path | None = None) -> Settings:

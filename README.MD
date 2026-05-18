@@ -1,34 +1,58 @@
-Task Definition: Project PaperGen
-Overview
-The objective is to design and implement an automated pipeline for generating academic research papers. This system must bridge the gap between raw experimental data and publication-ready documents (IEEE, Springer, Elsevier standards).
+# AutoPaper
 
-Infrastructure & Resource Allocation
-Controller (Local): A Python-based orchestration layer running on the development environment (laptop/workstation). This handles logic, API coordination, and file management.
+Automated academic paper tooling in two pipelines:
 
-High-Performance Compute (Remote Server): Access to an NVIDIA A30 GPU located on a remote server. This resource is dedicated to:
+| Pipeline | CLI | Package | Output |
+|----------|-----|---------|--------|
+| **Paper input** | `autopaper --input <folder>` | `paper_input` | `output/execution_NNN/*.json` |
+| **Research** | `research "your goal"` | `research` | `output/research_runs/run_NNN/*` |
 
-Running domain-specific LLMs (e.g., Llama-3, Mistral) for technical validation.
+## Quick start
 
-Processing heavy inference tasks that require data privacy (preventing sensitive lab data from leaving the controlled environment).
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+```
 
-Performing factual consistency and plagiarism checks.
+Create a repo root `.env` with your API keys (see **Configuration** below).
 
-Cloud Intelligence (APIs): Integration with Claude and Gemini for linguistic synthesis, abstract generation, and high-level structural drafting.
+**Paper input** (Gemini: text parser, vision, joiner):
 
-Core Requirements
-Automated Ingestion: Systematically collect and preprocess diverse data types: lab notes (text), experimental results (CSV/JSON), and reference materials (PDF).
+```bash
+autopaper --input examples/neuro_stability
+```
 
-Hybrid Modeling: Orchestrate a flow that routes "creative/linguistic" tasks to Cloud APIs and "technical/private" tasks to the remote A30 GPU.
+**Research** (GPT-4o plan → parallel Gemini + Claude + Exa search → Claude report):
 
-Academic Integrity: Implement modules for rigorous citation management, plagiarism detection, and technical accuracy verification.
+```bash
+research "State of flexible neural implants 2024–2026"
+```
 
-Standardized Output: Final generation must be compatible with LaTeX templates for major academic publishers.
+## Configuration
 
-Scalability: The architecture must be modular, allowing for future expansion into different research domains or multilingual support.
+Edit repo root `.env`: one API key per provider (`GOOGLE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `EXA_API_KEY`) and per-agent `*_MODEL` variables where models differ.
 
-Development Standards
-Strict Modularity: Every component (Ingestion, Writing, Validation, Formatting) must be isolated.
+Do not commit secrets. `exa.txt` is local reference only (gitignored).
 
-Documentation: Every directory within the project must contain a README.md defining its specific role in the pipeline.
+## Documentation
 
-Remote Synergy: The project must handle the communication between the local controller and the remote A30 server efficiently.
+| Topic | Path |
+|-------|------|
+| Flow index | [`src/autopaper/flow/README.md`](src/autopaper/flow/README.md) |
+| Paper input flow | [`src/autopaper/flow/paper_input/README.md`](src/autopaper/flow/paper_input/README.md) |
+| Research flow | [`src/autopaper/flow/research/README.md`](src/autopaper/flow/research/README.md) |
+| Package notes | [`paper_input/README.md`](paper_input/README.md), [`research/README.md`](research/README.md) |
+
+## Examples
+
+- `examples/neuro_stability/` — full paper project folder
+- `examples/sample_paper_input/` — minimal layout template
+
+## Development
+
+```bash
+pip install -r requirements.txt
+ruff check paper_input research src
+pytest
+```

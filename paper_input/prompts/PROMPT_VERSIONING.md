@@ -10,4 +10,4 @@ Every prompt **family** (one model / one role) gets its own directory under `pap
 
 When adding a new family (e.g. another agent), copy this layout and wire a loader in code that reads `<family>/current.md` only.
 
-See `gemini_flash_system/HISTORY.md` for the live example.
+See `gemini_joiner/HISTORY.md` for a live example.

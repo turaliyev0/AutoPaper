@@ -1,4 +1,4 @@
-"""Google Gen AI async client for the Data Gatherer."""
+"""Google Gen AI async client for Gemini search."""
 
 from __future__ import annotations
 

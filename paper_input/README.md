@@ -50,7 +50,7 @@ bundle, run_dir = run_ingest_pipeline(Path("examples/neuro_stability"))
 autopaper --input examples/neuro_stability
 ```
 
-Set per-agent keys in `.env` (see `.env.example`): `PAPER_INPUT_TEXT_PARSER_*`, `PAPER_INPUT_VISION_*`, `PAPER_INPUT_JOINER_*`, or shared `GOOGLE_API_KEY` + `GEMINI_MODEL`.
+Set `GOOGLE_API_KEY` and per-agent `PAPER_INPUT_*_MODEL` in repo root `.env`.
 
 ---
 
