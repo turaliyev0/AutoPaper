@@ -54,6 +54,8 @@ flowchart LR
 | 02 | `02_cleaned_text.json` | `TextParserAgent` | `paper_input/agents/text_parser_agent.py` |
 | 03 | `03_cleaned_images.json` | `VisionAgent` | `paper_input/agents/vision_agent.py` |
 | 04 | `04_final_standardized.json` | `JoinerAgent` | `paper_input/agents/joiner_agent.py` |
+| 05 | `05_orchestrator_plan.json` | Gemini research orchestrator (default after 04) | `research/pipeline.py` |
+| 06–07 | `06_gathered_research.json`, `07_final_report.md` | Optional (`--full-research`) | `research/` |
 
 **Run directory:** `<repo>/output/execution_NNN/` — override with `AUTOPAPER_OUTPUT_DIR`, `output_root=`, or `autopaper --output-dir`.
 
@@ -63,7 +65,7 @@ flowchart LR
 
 | How | Where |
 |-----|--------|
-| CLI | `autopaper --input <paper-folder>` |
+| CLI | `autopaper --input <paper-folder>` (default: plan at step 05; `--no-research` or `--full-research`) |
 | Python | `from paper_input import run_ingest_pipeline` |
 
 ---

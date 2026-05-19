@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
+from .research_continue import ResearchContinuation, continue_research
 from .run_workspace import (
     allocate_execution_directory,
     append_run_manifest_steps,
@@ -85,6 +86,7 @@ def run_ingest_pipeline(
     root: Path,
     *,
     output_root: Path | None = None,
+    research: ResearchContinuation = ResearchContinuation.PLAN,
 ) -> tuple[dict[str, Any], Path]:
     """
     Pipeline under ``<output>/execution_NNN/`` (diagram: ``src/autopaper/flow/paper_input/README.md``):
@@ -94,6 +96,9 @@ def run_ingest_pipeline(
     - **02** ``02_cleaned_text.json`` — Text Parser Agent
     - **03** ``03_cleaned_images.json`` — Vision Agent
     - **04** ``04_final_standardized.json`` — Joiner Agent
+    - **05+** (optional) research orchestrator plan and, if enabled, search + report
+
+    ``research``: ``off`` | ``plan`` (default) | ``full``.
 
     Returns ``(bundle, run_path)``.
     """
@@ -144,5 +149,7 @@ def run_ingest_pipeline(
         encoding="utf-8",
     )
     append_run_manifest_steps(run_path, FINAL_STANDARDIZED_FILENAME)
+
+    continue_research(run_path, mode=research)
 
     return bundle, run_path

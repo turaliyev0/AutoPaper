@@ -14,7 +14,7 @@ Use only `cleaned_text` and `cleaned_images`. No outside knowledge.
 **No information loss (required)**
 
 - Carry forward **all** `technical_analysis` text from `cleaned_text` (reorder allowed, do not delete facts).
-- Carry forward each image’s `description`, `visible_takeaway`, and `visible_labels` from `cleaned_images` unchanged. If an image has legacy `scientific_relevance` but no `visible_takeaway`, copy `scientific_relevance` into `visible_takeaway` verbatim.
+- Carry forward each image’s `description` and `figure_context` from `cleaned_images` unchanged. If an image has legacy `visible_takeaway` but no `figure_context`, copy `visible_takeaway` into `figure_context`. Do **not** add `visible_labels` to the output.
 
 **Summary (required)**
 
@@ -56,7 +56,7 @@ Use `severity`: `"aligned"` is not used here—only add flags for `weak_overlap`
 - `summary` (string): research inventory and how text and figures relate.
 - `text_blocks` (array): from `cleaned_text.text_blocks`; add `linked_images` only when justified.
 - `metadata_notes` (array): from `cleaned_text.metadata_notes`.
-- `images` (array): each item includes `relative_path`, `description`, `visible_takeaway`, `visible_labels`, `readable`; optional `mentioned_in_text` when justified.
+- `images` (array): each item includes `relative_path`, `description`, `figure_context`, `readable`; optional `mentioned_in_text` when justified. **No** `visible_labels` array.
 - `cross_references` (array): `{"text_path", "image_path", "relationship"}` for **strong** links only.
 - `mismatch_flags` (array): as above; may be `[]`.
 

@@ -1,90 +1,62 @@
-"""Orchestrator agent (GPT-4o): plans and emits validated JSON delegation config."""
+"""Orchestrator agent (GPT-4o): plan via OpenAI function calling + versioned prompt."""
 
 from __future__ import annotations
 
-import json
 import logging
 
 from pydantic import ValidationError
 
 from ..clients.openai_client import OpenAIClient
-from ..schemas import OrchestratorPlan, SEARCH_AGENT_IDS
+from ..config import ACTIVE_SEARCH_AGENT_IDS, Settings
+from ..prompts.loader import load_orchestrator_instruction
+from ..schemas import OrchestratorPlan
+from .orchestrator_tools import ORCHESTRATOR_TOOL_SCHEMAS, OrchestratorPlanBuilder
 
 logger = logging.getLogger(__name__)
 
-ORCHESTRATOR_SYSTEM = """You are SearchOrchestrator, a senior research project manager.
-Given a user's research goal, output ONLY a single JSON object matching this exact structure:
-
-{
-  "orchestrator_config": {
-    "agent_name": "SearchOrchestrator",
-    "mode": "parallel_subtasking",
-    "allow_cross_model_validation": true
-  },
-  "research_goal": {
-    "main_topic": "<concise topic>",
-    "required_outputs": ["<output 1>", "<output 2>", "..."]
-  },
-  "execution_strategy": {
-    "action": "separate_into_subtopics",
-    "target_agents": [
-      {
-        "agent_id": "gemini_search",
-        "model": "gemini-2.0-flash",
-        "tasks": ["<subtopic for Gemini model knowledge>", "..."]
-      },
-      {
-        "agent_id": "claude_search",
-        "model": "claude-3-5-sonnet",
-        "tasks": ["<subtopic for Claude model knowledge>", "..."]
-      },
-      {
-        "agent_id": "exa_search",
-        "model": "exa-deep",
-        "tasks": ["<web search query for Exa — clear, specific>", "..."]
-      },
-      {
-        "agent_id": "report_synthesizer",
-        "model": "claude-3-5-sonnet",
-        "tasks": ["Synthesize all search agent findings into one final Markdown report"]
-      }
-    ]
-  }
-}
-
-Rules:
-- Always include all four agents: gemini_search, claude_search, exa_search, report_synthesizer.
-- gemini_search / claude_search: 2–4 subtasks each (research angles, not duplicate wording).
-- exa_search: 2–4 web search queries (short, Exa-ready strings).
-- report_synthesizer: 1–2 tasks describing final report synthesis only (no searching).
-- No markdown fences. No commentary outside JSON.
-"""
-
 
 class OrchestratorAgent:
-    def __init__(self, client: OpenAIClient) -> None:
+    def __init__(self, client: OpenAIClient, *, settings: Settings) -> None:
         self._client = client
+        self._settings = settings
 
     async def create_plan(self, research_goal: str) -> OrchestratorPlan:
         user_prompt = (
             "Research goal from the user:\n\n"
             f"{research_goal.strip()}\n\n"
-            "Produce the orchestrator JSON configuration."
+            "Use the tools in the required order to delegate work, then finalize."
         )
-        raw = await self._client.generate_json(system=ORCHESTRATOR_SYSTEM, user=user_prompt)
+        builder = OrchestratorPlanBuilder(self._settings)
+        await self._client.run_tool_session(
+            system=load_orchestrator_instruction(),
+            user=user_prompt,
+            tools=ORCHESTRATOR_TOOL_SCHEMAS,
+            tool_handlers=builder.tool_handlers(),
+        )
+
+        if not builder.is_complete():
+            hint = (
+                "Orchestrator did not call finalize_orchestrator_plan after delegating. "
+                "The model may have stopped early; retry or use RESEARCH_ORCHESTRATOR_MODEL=gpt-4o."
+            )
+            if builder.main_topic and not builder.gemini_tasks:
+                hint += " (research goal was set but gemini_search was not delegated.)"
+            raise ValueError(hint)
+
         try:
-            plan = OrchestratorPlan.model_validate(raw)
-        except ValidationError as exc:
-            logger.error("Orchestrator JSON failed validation: %s", exc)
-            logger.debug("Raw orchestrator payload: %s", json.dumps(raw, indent=2))
+            plan = builder.to_plan()
+            OrchestratorPlan.model_validate(plan.model_dump())
+        except (ValidationError, ValueError) as exc:
+            logger.error("Orchestrator plan failed validation: %s", exc)
             raise ValueError(f"Orchestrator produced invalid plan: {exc}") from exc
+
         search_count = sum(
             1
             for a in plan.execution_strategy.target_agents
-            if a.agent_id in SEARCH_AGENT_IDS or a.agent_id == "gemini_explorer"
+            if a.agent_id in ACTIVE_SEARCH_AGENT_IDS or a.agent_id == "gemini_explorer"
         )
         logger.info(
-            "Orchestrator plan: topic=%r, search_agents=%d",
+            "Orchestrator plan: topic=%r, active_search_agents=%d (via tools)",
             plan.research_goal.main_topic,
             search_count,
         )

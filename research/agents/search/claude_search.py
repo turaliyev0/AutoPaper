@@ -1,10 +1,10 @@
-"""Claude search agent — structured research JSON per subtask."""
+"""Second Gemini search agent (claude_search id) — critical / methods angle."""
 
 from __future__ import annotations
 
 import logging
 
-from ...clients.anthropic_client import AnthropicClient
+from ...clients.gemini_client import search_client
 from ...config import Settings
 from ...schemas import GatheredTaskResult, OrchestratorPlan
 from .base import RESEARCH_TASK_JSON_SYSTEM, failed_result, result_from_json, task_user_payload
@@ -15,17 +15,14 @@ AGENT_ID = "claude_search"
 
 CLAUDE_SEARCH_SYSTEM = (
     RESEARCH_TASK_JSON_SYSTEM
-    + "\nYou use Claude model knowledge only (no live web). Do not invent URLs."
+    + "\nYou are the critical-angle researcher: emphasize methods, limitations, "
+    "contradictions, and gaps. Use model knowledge only (no live web). Do not invent URLs."
 )
 
 
 class ClaudeSearchAgent:
     def __init__(self, settings: Settings) -> None:
-        self._client = AnthropicClient(
-            settings,
-            api_key=settings.claude_search_api_key,
-            model=settings.claude_search_model,
-        )
+        self._client = search_client(settings, role="claude_search")
 
     async def run_task(self, task: str, plan: OrchestratorPlan) -> GatheredTaskResult:
         try:
@@ -35,5 +32,5 @@ class ClaudeSearchAgent:
             )
             return result_from_json(task=task, agent_id=AGENT_ID, data=data)
         except Exception as exc:
-            logger.exception("Claude search failed: %s", task)
+            logger.exception("Gemini search (claude_search slot) failed: %s", task)
             return failed_result(task=task, agent_id=AGENT_ID, error=str(exc))

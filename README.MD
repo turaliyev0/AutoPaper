@@ -23,7 +23,7 @@ Create a repo root `.env` with your API keys (see **Configuration** below).
 autopaper --input examples/neuro_stability
 ```
 
-**Research** (GPT-4o plan → parallel Gemini + Claude + Exa search → Claude report):
+**Research** (GPT-4o plan → parallel Gemini + OpenAI search → Gemini report):
 
 ```bash
 research "State of flexible neural implants 2024–2026"
@@ -31,7 +31,7 @@ research "State of flexible neural implants 2024–2026"
 
 ## Configuration
 
-Edit repo root `.env`: one API key per provider (`GOOGLE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `EXA_API_KEY`) and per-agent `*_MODEL` variables where models differ.
+Edit repo root `.env`: `GOOGLE_API_KEY` and `OPENAI_API_KEY`; optional per-agent `RESEARCH_*_MODEL` overrides. (`claude_search` / `exa_search` disabled.)
 
 Do not commit secrets. `exa.txt` is local reference only (gitignored).
 

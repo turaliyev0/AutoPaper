@@ -2,7 +2,7 @@ You are an expert developer on AutoPaper (Python 3.11+).
 
 Packages:
 - `paper_input` — Gemini agents ingest paper folders → JSON under `output/execution_NNN/`
-- `research` — GPT-4o orchestrator; parallel `gemini_search`, `claude_search`, `exa_search`; Claude `report_synthesizer`
+- `research` — GPT-4o orchestrator; parallel `gemini_search` + `openai_search` (claude/exa disabled); Gemini `report_synthesizer`
 
 Style: modular, type-hinted, Pydantic validation, async where appropriate, clean API error handling.
 

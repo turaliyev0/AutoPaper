@@ -10,13 +10,22 @@ from paper_input.prompts.loader import load_vision_instruction
 from .gemini_client import generate_json, load_images_from_bundle
 
 
+def _normalize_image_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Drop legacy label lists; ensure figure_context is a single summary sentence."""
+    entry.pop("visible_labels", None)
+    if not entry.get("figure_context"):
+        legacy = entry.pop("visible_takeaway", None) or entry.pop("scientific_relevance", None)
+        if legacy:
+            entry["figure_context"] = str(legacy).strip()
+    return entry
+
+
 def _unreadable_entry(relative_path: str, *, reason: str) -> dict[str, Any]:
     return {
         "relative_path": relative_path,
         "readable": False,
         "description": reason,
-        "visible_labels": [],
-        "visible_takeaway": "Image not available for visual analysis.",
+        "figure_context": "Image not available for visual analysis.",
     }
 
 
@@ -64,6 +73,8 @@ class VisionAgent:
             api_key=self._api_key,
             model_name=self._model_name,
         )
+        images = result.get("images") or []
+        result["images"] = [_normalize_image_entry(dict(img)) for img in images]
         if unreadable:
-            result.setdefault("images", []).extend(unreadable)
+            result["images"].extend(unreadable)
         return result

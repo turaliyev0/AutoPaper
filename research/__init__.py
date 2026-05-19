@@ -1,4 +1,4 @@
-"""Multi-Agent Research Pipeline (OpenAI + Gemini + Anthropic)."""
+"""Multi-Agent Research Pipeline (OpenAI orchestrator + Gemini/OpenAI search)."""
 
 from .pipeline import ResearchPipeline
 from .schemas import OrchestratorPlan, PipelineRunResult

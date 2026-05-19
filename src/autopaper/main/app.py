@@ -7,6 +7,7 @@ from importlib import import_module
 from pathlib import Path
 
 from paper_input.ingest import run_ingest_pipeline
+from paper_input.research_continue import ResearchContinuation
 
 _builtin_input = import_module("builtins").input
 
@@ -27,8 +28,8 @@ def _resolve_root(args: argparse.Namespace) -> Path:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Ingest paper folder → output/execution_NNN/: raw bundle, Text Parser (02), "
-            "Vision (03), Joiner (04). Requires GOOGLE_API_KEY or GEMINI_API_KEY. "
+            "Ingest paper folder → output/execution_NNN/ (steps 01–04), then by default "
+            "research orchestrator plan (05). Requires GOOGLE_API_KEY and OPENAI_API_KEY for full research. "
             "Flow: src/autopaper/flow/paper_input/README.md"
         )
     )
@@ -42,13 +43,45 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="Folder that will contain execution_NNN/ (default: <repo>/output or AUTOPAPER_OUTPUT_DIR).",
     )
+    research = parser.add_mutually_exclusive_group()
+    research.add_argument(
+        "--no-research",
+        action="store_true",
+        help="Stop after step 04 (no orchestrator).",
+    )
+    research.add_argument(
+        "--full-research",
+        action="store_true",
+        help="After 04: orchestrator + all search agents + final report (05–07).",
+    )
+    parser.add_argument(
+        "--log-gemini",
+        action="store_true",
+        help="Print Gemini API calls (and OpenAI orchestrator tools) to stderr.",
+    )
     args = parser.parse_args(argv)
+
+    if getattr(args, "log_gemini", False):
+        import os
+
+        os.environ["AUTOPAPER_LOG_TOOLS"] = "1"
 
     root = _resolve_root(args)
     out_arg = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
 
+    if args.no_research:
+        research_mode = ResearchContinuation.OFF
+    elif args.full_research:
+        research_mode = ResearchContinuation.FULL
+    else:
+        research_mode = ResearchContinuation.PLAN
+
     try:
-        _, run_path = run_ingest_pipeline(root, output_root=out_arg)
+        _, run_path = run_ingest_pipeline(
+            root,
+            output_root=out_arg,
+            research=research_mode,
+        )
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc

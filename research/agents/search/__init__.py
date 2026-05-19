@@ -1,14 +1,16 @@
-"""Parallel search agents: Gemini, Claude, and Exa."""
+"""Parallel search agents (gemini_search + openai_search; claude/exa disabled)."""
 
-from .claude_search import ClaudeSearchAgent
-from .exa_search import ExaSearchAgent
+from ...config import ACTIVE_SEARCH_AGENT_IDS
 from .gemini_search import GeminiSearchAgent
+from .openai_search import OpenAISearchAgent
 
-SEARCH_AGENT_IDS = frozenset({"gemini_search", "claude_search", "exa_search"})
+SEARCH_AGENT_IDS = frozenset(
+    {"gemini_search", "openai_search", "claude_search", "exa_search"},
+)
 
 __all__ = [
-    "ClaudeSearchAgent",
-    "ExaSearchAgent",
+    "ACTIVE_SEARCH_AGENT_IDS",
     "GeminiSearchAgent",
+    "OpenAISearchAgent",
     "SEARCH_AGENT_IDS",
 ]

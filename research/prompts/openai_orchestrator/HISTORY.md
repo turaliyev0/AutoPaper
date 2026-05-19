@@ -1,0 +1,7 @@
+# Prompt history: `openai_orchestrator`
+
+| Version | Date (UTC) | Why we updated | What was wrong / goal |
+|---------|------------|----------------|------------------------|
+| v001 | 2026-05-15 | Initial inline JSON orchestrator prompt | Single `generate_json` response; no tool delegation. |
+| v002 | 2026-05-19 | Versioned `current.md` + OpenAI function calling | User requested GPT-4o tools, disabled claude/exa; prompt lived in Python string. |
+| v003 | 2026-05-19 | Research-only focus | Mismatch-aware delegation, deduped gemini/openai tasks, required_outputs = report sections. |

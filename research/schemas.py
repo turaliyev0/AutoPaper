@@ -7,9 +7,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-SEARCH_AGENT_IDS = frozenset({"gemini_search", "claude_search", "exa_search"})
+from .config import ACTIVE_SEARCH_AGENT_IDS
+
+# All known search agent ids (legacy plans may still reference disabled agents).
+SEARCH_AGENT_IDS = frozenset(
+    {"gemini_search", "openai_search", "claude_search", "exa_search"},
+)
 REPORT_SYNTHESIZER_ID = "report_synthesizer"
-# Legacy orchestrator output
 _LEGACY_SYNTHESIZER_IDS = frozenset({"claude_analyst", REPORT_SYNTHESIZER_ID})
 
 
@@ -38,12 +42,12 @@ class ExecutionStrategy(BaseModel):
     @classmethod
     def must_include_search_and_synthesis(cls, agents: list[TargetAgent]) -> list[TargetAgent]:
         ids = {a.agent_id for a in agents}
-        has_search = bool(ids & SEARCH_AGENT_IDS) or "gemini_explorer" in ids
+        has_search = bool(ids & ACTIVE_SEARCH_AGENT_IDS) or "gemini_explorer" in ids
         has_synth = bool(ids & _LEGACY_SYNTHESIZER_IDS)
         if not has_search:
             raise ValueError(
-                "execution_strategy must include at least one search agent: "
-                "gemini_search, claude_search, exa_search"
+                "execution_strategy must include at least one active search agent: "
+                "gemini_search, openai_search"
             )
         if not has_synth:
             raise ValueError(
@@ -113,7 +117,7 @@ class SynthesisReport(BaseModel):
 
 class PipelineRunResult(BaseModel):
     plan: OrchestratorPlan
-    bundle: GatheredResearchBundle
+    bundle: GatheredResearchBundle | None = None
     report: SynthesisReport | None = None
     output_dir: str = ""
     errors: list[str] = Field(default_factory=list)

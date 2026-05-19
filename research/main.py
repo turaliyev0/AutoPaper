@@ -16,7 +16,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Multi-Agent Research Pipeline: GPT-4o orchestrator; "
-            "parallel Gemini, Claude, and Exa search; Claude report synthesizer."
+            "parallel gemini_search + openai_search; Gemini report synthesizer."
         )
     )
     parser.add_argument(
@@ -49,6 +49,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Debug logging.",
     )
+    parser.add_argument(
+        "--log-tools",
+        action="store_true",
+        help="Print Gemini calls and OpenAI orchestrator tool calls to stderr.",
+    )
     return parser
 
 
@@ -63,6 +68,10 @@ def _resolve_goal(args: argparse.Namespace) -> str:
 
 
 async def _async_main(args: argparse.Namespace) -> int:
+    import os
+
+    if args.log_tools:
+        os.environ["AUTOPAPER_LOG_TOOLS"] = "1"
     setup_logging()
     settings = load_settings(args.env)
     if args.output_dir is not None:
@@ -74,9 +83,10 @@ async def _async_main(args: argparse.Namespace) -> int:
 
     print(f"\nRun directory: {result.output_dir}")
     print(f"Topic: {result.plan.research_goal.main_topic}")
-    print(
-        f"Search: {len(result.bundle.successful_results)}/{len(result.bundle.results)} tasks OK"
-    )
+    if result.bundle:
+        print(
+            f"Search: {len(result.bundle.successful_results)}/{len(result.bundle.results)} tasks OK"
+        )
     if result.report:
         print(f"Report: {result.output_dir}/03_final_report.md")
     if result.errors:

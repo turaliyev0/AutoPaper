@@ -1,21 +1,17 @@
-"""Runs all search agents (Gemini, Claude, Exa) in parallel."""
+"""Runs active search agents in parallel (gemini_search + openai_search)."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 
+from ..config import ACTIVE_SEARCH_AGENT_IDS
+from ..manuscript_context import ManuscriptContext
 from ..schemas import GatheredResearchBundle, GatheredTaskResult, OrchestratorPlan
-from .search import (
-    SEARCH_AGENT_IDS,
-    ClaudeSearchAgent,
-    ExaSearchAgent,
-    GeminiSearchAgent,
-)
+from .search import GeminiSearchAgent, OpenAISearchAgent
 
 logger = logging.getLogger(__name__)
 
-# Orchestrator legacy id → current search agent id
 _LEGACY_SEARCH_IDS: dict[str, str] = {
     "gemini_explorer": "gemini_search",
 }
@@ -25,36 +21,42 @@ class SearchCoordinator:
     def __init__(
         self,
         gemini: GeminiSearchAgent,
-        claude: ClaudeSearchAgent,
-        exa: ExaSearchAgent,
+        openai: OpenAISearchAgent,
     ) -> None:
         self._agents = {
             "gemini_search": gemini,
-            "claude_search": claude,
-            "exa_search": exa,
+            "openai_search": openai,
         }
 
     @classmethod
     def from_settings(cls, settings) -> SearchCoordinator:
         return cls(
             GeminiSearchAgent(settings),
-            ClaudeSearchAgent(settings),
-            ExaSearchAgent(settings),
+            OpenAISearchAgent(settings),
         )
 
-    async def gather(self, plan: OrchestratorPlan) -> GatheredResearchBundle:
+    async def gather(
+        self,
+        plan: OrchestratorPlan,
+        *,
+        manuscript: ManuscriptContext | None = None,
+    ) -> GatheredResearchBundle:
         coros = []
         for target in plan.execution_strategy.target_agents:
             agent_id = _LEGACY_SEARCH_IDS.get(target.agent_id, target.agent_id)
-            if agent_id not in SEARCH_AGENT_IDS:
+            if agent_id not in ACTIVE_SEARCH_AGENT_IDS:
+                if agent_id in {"claude_search", "exa_search"}:
+                    logger.debug("Skipping disabled search agent: %s", agent_id)
                 continue
-            impl = self._agents[agent_id]
+            impl = self._agents.get(agent_id)
+            if impl is None:
+                continue
             for task in target.tasks:
-                coros.append(impl.run_task(task, plan))
+                coros.append(impl.run_task(task, plan, manuscript=manuscript))
 
         if not coros:
             raise ValueError(
-                "No search tasks in plan. Include gemini_search, claude_search, and/or exa_search."
+                "No search tasks in plan. Include gemini_search and/or openai_search."
             )
 
         logger.info("SearchCoordinator: running %d search tasks in parallel", len(coros))

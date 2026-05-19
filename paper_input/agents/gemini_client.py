@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -157,6 +156,22 @@ def generate_json(
         system_instruction=system_instruction,
         response_mime_type="application/json",
     )
+    user_preview = ""
+    if content_parts:
+        first = content_parts[0]
+        if isinstance(first, str):
+            user_preview = first
+    try:
+        from autopaper.gemini.trace import log_request, log_response
+
+        log_request(
+            label=f"paper_input.{agent.value}",
+            model=resolved,
+            mode="json",
+            user_preview=user_preview,
+        )
+    except ImportError:
+        pass
     try:
         response = client.models.generate_content(
             model=resolved,
@@ -174,6 +189,12 @@ def generate_json(
                 f"Set {model_var(agent)} in .env to one of these."
             ) from exc
         raise
+    try:
+        from autopaper.gemini.trace import log_response
+
+        log_response(response, label=f"paper_input.{agent.value}")
+    except ImportError:
+        pass
     text = _response_text(response)
     if not text.strip():
         raise RuntimeError(
