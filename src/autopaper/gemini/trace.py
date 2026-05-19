@@ -14,6 +14,13 @@ _TRACE_ENV = ("GEMINI_LOG_CALLS", "AUTOPAPER_GEMINI_LOG", "AUTOPAPER_LOG_TOOLS")
 
 
 def gemini_trace_enabled() -> bool:
+    try:
+        from autopaper.llm.trace import llm_trace_enabled
+
+        if llm_trace_enabled():
+            return True
+    except ImportError:
+        pass
     for name in _TRACE_ENV:
         if os.environ.get(name, "").strip().lower() in ("1", "true", "yes"):
             return True

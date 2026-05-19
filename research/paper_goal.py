@@ -42,6 +42,16 @@ def final_standardized_to_research_goal(
     if block:
         lines.extend(["", "## Manuscript context (structured)", block])
 
+    if ctx.experimental_design:
+        lines.extend(
+            [
+                "",
+                "## Instruction",
+                "Preserve the experimental-design bullets above in required_outputs and in at least "
+                "one openai_search subtask (control design / within-subject hemispheric comparison).",
+            ],
+        )
+
     return "\n".join(lines).strip()
 
 

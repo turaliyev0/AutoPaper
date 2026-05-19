@@ -36,6 +36,7 @@ class OpenAISearchAgent:
             data = await self._client.generate_json(
                 system=self._system,
                 user=task_user_payload(task, plan, manuscript=manuscript),
+                trace_label=f"openai_search:{task[:48]}",
             )
             return result_from_json(task=task, agent_id=AGENT_ID, data=data)
         except Exception as exc:

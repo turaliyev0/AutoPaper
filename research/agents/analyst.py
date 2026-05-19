@@ -36,11 +36,8 @@ class ReportSynthesizer:
             "search_findings": bundle.to_context_dict(),
         }
         if manuscript is not None:
-            user_payload["manuscript"] = {
-                "summary": manuscript.summary,
-                "target_journal": manuscript.target_journal,
-                "mismatch_flags": [f.model_dump() for f in manuscript.mismatch_flags],
-            }
+            user_payload["manuscript"] = manuscript.to_search_dict()
+            user_payload["manuscript"]["summary"] = manuscript.summary
 
         markdown = await self._client.generate_markdown(
             system=self._system,
