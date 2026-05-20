@@ -26,7 +26,7 @@ flowchart TB
 
 | Agent id | Provider | Role |
 |----------|----------|------|
-| Orchestrator | OpenAI GPT-4o | Plan via **function calling** |
+| Orchestrator | OpenAI | Plan via **Responses API** + function calling (`research/prompts/openai_orchestrator/`) |
 | `gemini_search` | Gemini | One JSON file per literature subtask |
 | `openai_search` | OpenAI GPT-4o | One JSON file per methods/limitations subtask |
 | `research_validator` | Gemini | Source traceability + clarity per task file |

@@ -46,13 +46,17 @@ Do not commit secrets. `exa.txt` is local reference only (gitignored).
 
 ## Examples
 
-- `examples/neuro_stability/` — full paper project folder
+- `examples/neuro_stability/` — full paper project folder (neural interfaces)
+- `examples/hydrogel_wound_delivery/` — full paper project folder (biomaterials / wound dressing)
 - `examples/sample_paper_input/` — minimal layout template
 
 ## Development
 
 ```bash
 pip install -r requirements.txt
-ruff check paper_input research src
+ruff check paper_input research src tests
 pytest
 ```
+
+See **[`docs/testing.md`](docs/testing.md)** for test layout, manual smoke commands, and example image requirements.
+

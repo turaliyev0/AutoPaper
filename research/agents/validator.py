@@ -10,7 +10,7 @@ from pathlib import Path
 from ..clients.gemini_client import validator_client
 from ..config import Settings
 from ..prompts.loader import load_research_validator_instruction
-from ..research_storage import load_research_manifest, load_task_result, task_artifact_slug
+from ..research_storage import load_research_manifest, load_task_result
 from ..schemas import (
     GatheredTaskResult,
     OrchestratorPlan,

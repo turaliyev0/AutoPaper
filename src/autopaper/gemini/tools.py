@@ -224,9 +224,3 @@ async def run_tool_loop_async(
     )
 
 
-def parse_json_tool_result(result: ToolLoopResult) -> dict[str, Any]:
-    """Parse final text as JSON (for agents that need structured output after tools)."""
-    text = result.text.strip()
-    if not text:
-        raise ValueError("Empty tool-loop response")
-    return json.loads(text)

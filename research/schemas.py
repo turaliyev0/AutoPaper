@@ -9,10 +9,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from .config import ACTIVE_SEARCH_AGENT_IDS
 
-# All known search agent ids (legacy plans may still reference disabled agents).
-SEARCH_AGENT_IDS = frozenset(
-    {"gemini_search", "openai_search", "claude_search", "exa_search"},
-)
 RESEARCH_VALIDATOR_ID = "research_validator"
 REPORT_SYNTHESIZER_ID = "report_synthesizer"
 _LEGACY_SYNTHESIZER_IDS = frozenset({"claude_analyst", REPORT_SYNTHESIZER_ID})

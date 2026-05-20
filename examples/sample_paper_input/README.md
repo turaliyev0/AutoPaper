@@ -14,4 +14,6 @@ Requires **`GOOGLE_API_KEY`** or **`GEMINI_API_KEY`** and **`GEMINI_MODEL`** in 
 
 Each run writes under **`<repo>/output/execution_NNN/`**: `01_raw_input_bundle.json`, `02_cleaned_text.json`, `03_cleaned_images.json`, `04_final_standardized.json`, plus `00_run_manifest.json`.
 
+**Figures:** files in `images/` must be valid PNG/JPEG (etc.) that load with Pillow and pass vision validation; tiny solid-color placeholders may be rejected. See [`docs/testing.md`](../../docs/testing.md).
+
 `output/` at repo root is gitignored so local runs do not clutter commits.

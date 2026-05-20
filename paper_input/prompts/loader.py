@@ -34,9 +34,3 @@ def load_joiner_instruction() -> str:
     return _load_family_prompt("gemini_joiner")
 
 
-def list_prompt_archive_versions(family: str) -> list[str]:
-    """Sorted archive filenames under ``<family>/archive/`` (e.g. ``v001.md``)."""
-    archive = _PROMPTS_ROOT / family / "archive"
-    if not archive.is_dir():
-        return []
-    return sorted(p.name for p in archive.glob("v*.md"))

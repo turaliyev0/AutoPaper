@@ -1,0 +1,41 @@
+================================================================================
+EXPERIMENTAL PARAMETERS AND METHODOLOGY
+================================================================================
+
+ANIMAL MODEL:
+- Species: Yorkshire pigs (domestic, female), n = 18 total (n = 6 per arm).
+- Age / weight: 12–14 weeks, 28–32 kg at randomization.
+- Housing: pair-housed when compatible; 12 h light / 12 h dark; ad libitum feed per institutional diet.
+
+WOUND MODEL AND RANDOMIZATION:
+- Full-thickness excisional wounds: 2 cm × 2 cm per site, two sites per animal (cranial / caudal), analyzed independently with animal as random effect in mixed models.
+- Randomization: computer-generated block randomization (block size 6), stratified by technician.
+- Blinding: histology and planimetry performed by staff blinded to treatment label; dressing preparation performed by unblinded pharmacy staff only.
+
+INTERVENTION ARMS:
+1) Dex-SP hydrogel (target loading 0.5 mg dexamethasone base equivalent per mL gel, applied 1.5 mL per wound).
+2) Vehicle hydrogel (same polymer matrix, no Dex-SP).
+3) Standard care control (non-adherent gauze + secondary absorbent dressing), changed on same schedule.
+
+HYDROGEL COMPOSITION (BOTH ACTIVE AND VEHICLE):
+- Chitosan (deacetylation ~92%, medical grade) dissolved in 0.1 M acetic acid to 2.0 % w/v.
+- β-glycerophosphate disodium added dropwise to pH ~6.8 at 4 °C to induce thermogelation at 37 °C.
+- Dex-SP (salt) dissolved in sterile water and mixed into pre-gel at 4 °C immediately before application.
+
+IN VITRO RELEASE (METHOD DEVELOPMENT):
+- USP apparatus 7 (reciprocating holder), 37 ± 0.5 °C, PBS pH 7.4 with 0.02 % sodium azide as preservative during method qualification only (not used in vivo).
+- Sampling at 0.5, 1, 2, 4, 8, 24, 48, 72 h; Dex quantified by validated HPLC-UV (C18, isocratic mobile phase); n = 6 independent batches reported as mean ± SD.
+
+WOUND ASSESSMENT:
+- Planimetry: digital photography with calibrated scale bar; wound traced in ImageJ; primary endpoint is percent area reduction at day 7 vs day 0.
+- Biopsy schedule: 0 h (immediately pre-dressing), 72 h, and day 14 for gene expression subset (n = 3 per arm).
+- Cytokines: Meso Scale Discovery U-PLEX custom panel for IL-1β, TNF-α, IL-6 on homogenized wound-edge tissue (normalized to total protein).
+
+SYSTEMIC SAFETY MONITORING:
+- Serum cortisol and fasting glucose at baseline, day 3, and day 7; clinical observation twice daily for infection signs.
+
+STATISTICAL ANALYSIS:
+- Mixed-effects models with treatment, time, and treatment×time; Tukey-adjusted pairwise comparisons for pre-specified contrasts (Dex vs vehicle; Dex vs gauze).
+- Alpha = 0.05 two-sided; no interim analysis for efficacy.
+
+================================================================================

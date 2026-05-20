@@ -18,12 +18,9 @@ from .manuscript_context import load_manuscript_context_from_execution
 from .research_storage import (
     EXEC_GATHERED_AGGREGATE,
     EXEC_INDEX_MD,
-    EXEC_INDEX_META,
     EXEC_RESEARCH_DIR,
     EXEC_VALIDATION_DIR,
-    RUN_GATHERED_AGGREGATE,
     RUN_INDEX_MD,
-    RUN_INDEX_META,
     RUN_RESEARCH_DIR,
     RUN_VALIDATION_DIR,
     layout_for_run_dir,
@@ -41,10 +38,6 @@ from .schemas import (
 logger = logging.getLogger(__name__)
 
 PLAN_FILENAME = "05_orchestrator_plan.json"
-# Legacy aggregate filename (still written for tooling).
-GATHERED_FILENAME = EXEC_GATHERED_AGGREGATE
-REPORT_FILENAME = EXEC_INDEX_MD
-REPORT_META_FILENAME = EXEC_INDEX_META
 
 
 def _force_replan() -> bool:

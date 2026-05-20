@@ -182,11 +182,6 @@ def gemini_search_client(settings: Settings) -> GeminiClient:
     )
 
 
-def synthesizer_client(settings: Settings) -> GeminiClient:
-    """Legacy alias — index builder."""
-    return index_client(settings)
-
-
 def validator_client(settings: Settings) -> GeminiClient:
     return GeminiClient(
         settings,

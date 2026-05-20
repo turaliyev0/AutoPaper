@@ -1,4 +1,4 @@
-"""Orchestrator agent (GPT-4o): plan via OpenAI function calling + versioned prompt."""
+"""Orchestrator agent (GPT-4o): plan via OpenAI Responses API + function calling + versioned prompt."""
 
 from __future__ import annotations
 

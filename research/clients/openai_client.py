@@ -35,14 +35,37 @@ def _tool_names_from_schemas(tools: list[dict[str, Any]]) -> list[str]:
     return names
 
 
-def _assistant_message_dict(message: Any) -> dict[str, Any]:
-    if hasattr(message, "model_dump"):
-        return message.model_dump(exclude_none=True)
-    return {
-        "role": getattr(message, "role", "assistant"),
-        "content": getattr(message, "content", None),
-        "tool_calls": getattr(message, "tool_calls", None),
-    }
+def _orchestrator_tools_for_responses(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map Chat Completions tool schemas to Responses API ``FunctionToolParam`` shape."""
+    out: list[dict[str, Any]] = []
+    for t in tools:
+        fn = t.get("function") if isinstance(t, dict) else None
+        if not isinstance(fn, dict):
+            continue
+        name = fn.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        params = fn.get("parameters")
+        if not isinstance(params, dict):
+            params = {}
+        out.append(
+            {
+                "type": "function",
+                "name": name,
+                "description": str(fn.get("description") or ""),
+                "parameters": params,
+                "strict": False,
+            },
+        )
+    return out
+
+
+def _response_output_item_to_input_dict(item: Any) -> dict[str, Any]:
+    if hasattr(item, "model_dump"):
+        return item.model_dump(mode="json", exclude_none=True)
+    if isinstance(item, dict):
+        return item
+    raise TypeError(f"Unexpected output item type: {type(item)!r}")
 
 
 class OpenAIClient:
@@ -131,11 +154,13 @@ class OpenAIClient:
         """
         Run OpenAI function calling until the model stops calling tools or ``max_turns``.
 
+        Uses the **Responses API** (``client.responses.create``), not Chat Completions.
+
         Mutates state only via ``tool_handlers`` (e.g. :class:`OrchestratorPlanBuilder`).
         """
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
+        responses_tools = _orchestrator_tools_for_responses(tools)
+        input_items: list[dict[str, Any]] = [
+            {"type": "message", "role": "user", "content": user},
         ]
 
         if llm_trace_enabled():
@@ -146,35 +171,45 @@ class OpenAIClient:
 
         for turn in range(max_turns):
             try:
-                response = await self._client.chat.completions.create(
+                response = await self._client.responses.create(
                     model=self._model,
-                    messages=messages,
-                    tools=tools,
+                    instructions=system,
+                    input=input_items,
+                    tools=responses_tools,
                     tool_choice="auto",
                     temperature=0.2,
+                    store=False,
                 )
             except (RateLimitError, APITimeoutError, APIConnectionError) as exc:
                 logger.warning("OpenAI API error (tool turn %d): %s", turn + 1, exc)
                 raise TimeoutError(str(exc)) from exc
 
-            message = response.choices[0].message
-            tool_calls = getattr(message, "tool_calls", None) or []
-            if llm_trace_enabled():
-                log_openai_tool_turn(turn=turn + 1, tool_count=len(tool_calls))
+            if getattr(response, "error", None) is not None:
+                err = response.error
+                msg = getattr(err, "message", None) or str(err)
+                raise RuntimeError(f"Responses API error: {msg}")
 
-            if not tool_calls:
-                final = getattr(message, "content", None) or ""
+            function_calls = [
+                item
+                for item in response.output
+                if getattr(item, "type", None) == "function_call"
+            ]
+            if llm_trace_enabled():
+                log_openai_tool_turn(turn=turn + 1, tool_count=len(function_calls))
+
+            for item in response.output:
+                input_items.append(_response_output_item_to_input_dict(item))
+
+            if not function_calls:
+                final = getattr(response, "output_text", "") or ""
                 if llm_trace_enabled():
                     log_openai_tool_done(turns=turn + 1, final_text=str(final))
                 break
 
-            messages.append(_assistant_message_dict(message))
-
-            for call in tool_calls:
-                fn = getattr(call, "function", None)
-                name = getattr(fn, "name", None) or ""
-                raw_args = getattr(fn, "arguments", None) or "{}"
-                call_id = getattr(call, "id", None) or ""
+            for call in function_calls:
+                name = getattr(call, "name", None) or ""
+                raw_args = getattr(call, "arguments", None) or "{}"
+                call_id = getattr(call, "call_id", None) or ""
 
                 handler = tool_handlers.get(name)
                 if not handler:
@@ -190,11 +225,11 @@ class OpenAIClient:
                     except json.JSONDecodeError as exc:
                         payload = {"status": "error", "message": f"Invalid JSON arguments: {exc}"}
 
-                messages.append(
+                input_items.append(
                     {
-                        "role": "tool",
-                        "tool_call_id": call_id,
-                        "content": json.dumps(payload, ensure_ascii=False),
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": json.dumps(payload, ensure_ascii=False),
                     },
                 )
                 logger.debug("Tool %s → %s", name, payload.get("status"))

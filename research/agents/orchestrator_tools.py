@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, Callable
 
 from ..config import Settings
@@ -234,6 +233,3 @@ class OrchestratorPlanBuilder:
             ),
         )
 
-    @staticmethod
-    def tool_result_json(payload: dict[str, str]) -> str:
-        return json.dumps(payload, ensure_ascii=False)

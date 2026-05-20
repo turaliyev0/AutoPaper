@@ -82,29 +82,3 @@ class ResearchIndexBuilder:
         return SynthesisReport(title=title, markdown_body=markdown)
 
 
-class ReportSynthesizer(ResearchIndexBuilder):
-    """Backward-compatible alias for :class:`ResearchIndexBuilder`."""
-
-    async def synthesize(
-        self,
-        plan: OrchestratorPlan,
-        bundle: GatheredResearchBundle,
-        *,
-        manuscript: ManuscriptContext | None = None,
-        validated: ValidatedResearchBundle | None = None,
-        research_dir: Path | None = None,
-        validation_dir: Path | None = None,
-    ) -> SynthesisReport:
-        if validated is None or research_dir is None or validation_dir is None:
-            raise ValueError(
-                "ReportSynthesizer.synthesize now requires validated bundle and artifact directories. "
-                "Use ResearchPipeline or ResearchIndexBuilder.build_index."
-            )
-        return await self.build_index(
-            plan,
-            bundle,
-            validated,
-            research_dir=research_dir,
-            validation_dir=validation_dir,
-            manuscript=manuscript,
-        )

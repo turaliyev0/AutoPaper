@@ -1,0 +1,25 @@
+{
+  "project_title": "Dexamethasone-Loaded Chitosan Hydrogels for Post-Surgical Wound Inflammation: A Randomized Porcine Model",
+  "authors": [
+    {
+      "name": "Turaliyev",
+      "affiliation": "Inha University, IT Engineering",
+      "role": "Researcher"
+    }
+  ],
+  "target_journal": "Biomaterials Science",
+  "manuscript_details": {
+    "word_count_estimate": 5200,
+    "language": "en",
+    "version": "1.0.0",
+    "submission_track": "Original Research Article"
+  },
+  "technical_tags": {
+    "domain": "Biomaterials",
+    "sub_domain": "Drug-eluting dressings",
+    "methodology": "In vivo wound healing + HPLC release",
+    "materials": ["Chitosan", "β-glycerophosphate", "Dexamethasone sodium phosphate"]
+  },
+  "data_availability": "De-identified wound metrics and release curves will be deposited with the journal supplement",
+  "contact": "turaliyev@inha.ac.kr"
+}

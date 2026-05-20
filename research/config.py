@@ -47,24 +47,6 @@ class Settings(BaseSettings):
         validation_alias="RESEARCH_OPENAI_SEARCH_MODEL",
     )
 
-    # --- research / claude_search (disabled) ---
-    research_claude_search_api_key: str = Field(
-        default="", validation_alias="RESEARCH_CLAUDE_SEARCH_API_KEY"
-    )
-    research_claude_search_model: str = Field(
-        default=_DEFAULT_GEMINI,
-        validation_alias="RESEARCH_CLAUDE_SEARCH_MODEL",
-    )
-
-    # --- research / exa_search (disabled) ---
-    research_exa_search_api_key: str = Field(
-        default="", validation_alias="RESEARCH_EXA_SEARCH_API_KEY"
-    )
-    research_exa_search_model: str = Field(
-        default=_DEFAULT_GEMINI,
-        validation_alias="RESEARCH_EXA_SEARCH_MODEL",
-    )
-
     # --- research / Report synthesizer (Gemini) ---
     research_report_synthesizer_api_key: str = Field(
         default="", validation_alias="RESEARCH_REPORT_SYNTHESIZER_API_KEY"

@@ -8,3 +8,4 @@
 | v004 | 2026-05-19 | Experimental design | Required output + openai task for experimental_design; do not generalize hemispheric design away. |
 | v005 | 2026-05-19 | Mandatory grounding | Every subtask must require literature-grounded outputs; synthesizer limited to gathered sources. |
 | v006 | 2026-05-20 | Validator + per-task files | `research_validator` replaces orchestrator `report_synthesizer`; runtime builds research index catalog. |
+| v007 | 2026-05-20 | Responses API | Orchestrator tool loop uses `POST /v1/responses` via SDK `client.responses.create` (Chat Completions no longer used for tools). |

@@ -33,11 +33,6 @@ def load_openai_search_instruction() -> str:
     return _load_family_prompt("openai_search")
 
 
-def load_report_synthesizer_instruction() -> str:
-    """Legacy alias — research index catalog."""
-    return load_research_index_instruction()
-
-
 def load_research_validator_instruction() -> str:
     """Gemini research validator: per-task source and clarity."""
     return _load_family_prompt("gemini_research_validator")
@@ -48,8 +43,3 @@ def load_research_index_instruction() -> str:
     return _load_family_prompt("gemini_research_index")
 
 
-def list_prompt_archive_versions(family: str) -> list[str]:
-    archive = _PROMPTS_ROOT / family / "archive"
-    if not archive.is_dir():
-        return []
-    return sorted(p.name for p in archive.glob("v*.md"))

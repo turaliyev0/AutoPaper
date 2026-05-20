@@ -112,12 +112,6 @@ def load_images_from_bundle(
     return loadable, failed
 
 
-def load_pil_images_from_bundle(bundle: dict[str, Any]) -> list[tuple[str, Any]]:
-    """Deprecated: use :func:`load_images_from_bundle`."""
-    loadable, _ = load_images_from_bundle(bundle)
-    return loadable
-
-
 def _response_text(response: Any) -> str:
     text = getattr(response, "text", None)
     if text and str(text).strip():

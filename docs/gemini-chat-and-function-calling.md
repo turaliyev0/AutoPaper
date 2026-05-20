@@ -7,7 +7,7 @@
 | **Chat with memory** | **Chats API** — `client.chats.create()` then `send_message()` | Not used; each agent is **one-shot** `generate_content` |
 | **Function calling** | **Tools** — `FunctionDeclaration` or Python callables in `config.tools` | Only **Google Search** tool on `exa_search`; no custom tools, no call loop |
 
-There is no separate product called “stateful chat” — memory is **conversation history** kept by a `Chat` session (or by you passing `contents=[...]` manually).
+There is no separate product called “stateful chat” — memory is **conversation history** kept by a `Chat` session (or by you passing `contents=[...]` manually)  .
 
 ---
 
@@ -76,7 +76,27 @@ print(response.text)
 
 ### Option B — Manual loop (full control)
 
-Use `autopaper.gemini.run_tool_loop` with a `dict[str, callable]` registry. See `examples/gemini_chat_and_tools_demo.py`.
+Use `autopaper.gemini.run_tool_loop` with a `dict[str, callable]` registry:
+
+```python
+from pathlib import Path
+
+from autopaper.gemini import run_tool_loop
+
+def load_execution_summary(execution_id: str) -> str:
+    path = Path("output") / execution_id / "04_final_standardized.json"
+    return path.read_text(encoding="utf-8")[:4000] if path.is_file() else "missing"
+
+result = run_tool_loop(
+    api_key=key,
+    model="gemini-2.0-flash",
+    system="Answer using tools when needed.",
+    user="Summarize execution_008 in one sentence.",
+    tools={"load_execution_summary": load_execution_summary},
+    automatic=False,
+)
+print(result.text)
+```
 
 ### Option C — Structured output **after** tools
 
@@ -95,13 +115,6 @@ Use `autopaper.gemini.run_tool_loop` with a `dict[str, callable]` registry. See 
 | Interactive CLI | Yes | `run_ingest`, `continue_research` |
 
 ---
-
-## Run the demo
-
-```bash
-set GOOGLE_API_KEY=your_key
-python examples/gemini_chat_and_tools_demo.py
-```
 
 ---
 
