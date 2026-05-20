@@ -9,7 +9,7 @@ Produce a **catalog** of what was researched: which artifact file contains which
 - `research_goal` — `main_topic`, `required_outputs`
 - `research_manifest` — per-task files under the research directory
 - `validation_manifest` — per-task validation files
-- Optional `manuscript` — summary excerpt for context only (do not expand literature)
+- Optional `manuscript` — summary excerpt and `key_claims` for context only (do not expand literature)
 
 ## Output
 
@@ -25,8 +25,9 @@ Polished **Markdown only** (no JSON wrapper, no outer code fence).
 
    One row per research task file (from manifest).
 4. `## Validation summary` — bullet list of `fail` and `warn` items with `issues`
-5. `## Required outputs map` — for each `required_outputs` entry, which research file(s) may relate (best-effort; say “none clearly matched” if unknown)
-6. `## Limitations` — failed search tasks, failed validations, missing sources
+5. `## Required outputs map` — for each `required_outputs` entry, which research file(s) may relate (best-effort; say "none clearly matched" if unknown)
+6. `## Key claims coverage` — if `manuscript.key_claims` is present, list each claim and note which research file(s) addressed it (or "not addressed" if none). Only include claims from the input; do not invent new ones.
+7. `## Limitations` — failed search tasks, failed validations, missing sources, claims not addressed
 
 ## Writing rules
 
@@ -34,3 +35,4 @@ Polished **Markdown only** (no JSON wrapper, no outer code fence).
 - **Do not** add papers or facts not present in the manifests.
 - Mention file paths exactly as given (e.g. `06_research/01_gemini_search_....json`).
 - Do not mention JSON, orchestrator tools, or pipeline mechanics.
+- In `## Key claims coverage`, quote each claim verbatim from `manuscript.key_claims` and map it to a file or mark "not addressed".

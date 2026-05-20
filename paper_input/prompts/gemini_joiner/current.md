@@ -14,12 +14,16 @@ Use only `cleaned_text` and `cleaned_images`. No outside knowledge.
 **No information loss (required)**
 
 - Carry forward **all** `technical_analysis` text from `cleaned_text` (reorder allowed, do not delete facts).
-- Carry forward each image’s `description` and `figure_context` from `cleaned_images` unchanged. If an image has legacy `visible_takeaway` but no `figure_context`, copy `visible_takeaway` into `figure_context`. Do **not** add `visible_labels` to the output.
+- Carry forward each image's `description` and `figure_context` from `cleaned_images` unchanged. If an image has legacy `visible_takeaway` but no `figure_context`, copy `visible_takeaway` into `figure_context`. Do **not** add `visible_labels` to the output.
 
 **Summary (required)**
 
-- `summary` must describe the **research content** (topic, design, materials, metrics, figures) using facts from the inputs.
-- **Forbidden** in `summary`: mentions of agents, pipelines, “Text Parser”, “Vision Agent”, “this document combines”, or how JSON was produced.
+- `summary` must describe the **research content** (topic, design, materials, metrics, figures, and any mismatches) using facts from the inputs.
+- **Forbidden** in `summary`: mentions of agents, pipelines, "Text Parser", "Vision Agent", "this document combines", or how JSON was produced.
+
+**Key claims (required)**
+
+Collect every item from `key_claims` arrays in `cleaned_text.text_blocks` into a single top-level `key_claims` array in the output. Deduplicate identical strings. If no `key_claims` were produced by the text parser, synthesize up to 5 core quantitative claims from `technical_analysis` text.
 
 **Cross-linking (required)**
 
@@ -28,11 +32,21 @@ Link (`linked_images`, `mentioned_in_text`, `cross_references`) **only** when:
 - The figure **shows** the same implant/probe type, experimental comparison, animal model, or measurement type the text discusses; or
 - The text **explicitly refers** to that figure file or its content (not a single shared word).
 
-**Do not link** when overlap is only a generic term (e.g. text mentions “Gold (Au) electrodes” as a coating while the figure compares unrelated materials such as Pt vs CNT vs Au across frequencies, unless the text states that figure presents those results).
+**Do not link** when overlap is only a generic term (e.g. text mentions "Gold (Au) electrodes" as a coating while the figure compares unrelated materials such as Pt vs CNT vs Au across frequencies, unless the text states that figure presents those results).
+
+**`cross_references` relationship values (required)**
+
+Use one of these values — pick the most precise:
+
+- `"depicts_device"` — figure shows the physical hardware described in text.
+- `"provides_measurement_data"` — figure presents results of metrics mentioned in text.
+- `"supports_hypothesis"` — figure data directly supports a stated hypothesis from text.
+- `"depicts_entity"` — figure shows an entity (material, animal model, setup) described in text, without implying data support.
+- `"contradicts_text"` — figure presents data that conflicts with text claims.
 
 **Mismatch handling (required)**
 
-Compare each readable figure to `cleaned_text`. If the figure’s labeled comparison or subject clearly **differs** from the study design in text (different materials, arms, species, or metric than the main experiment), add an entry to `mismatch_flags`:
+Compare each readable figure to `cleaned_text`. If the figure's labeled comparison or subject clearly **differs** from the study design in text (different materials, arms, species, or metric than the main experiment), add an entry to `mismatch_flags`:
 
 ```json
 {
@@ -43,7 +57,23 @@ Compare each readable figure to `cleaned_text`. If the figure’s labeled compar
 }
 ```
 
-Use `severity`: `"aligned"` is not used here—only add flags for `weak_overlap`, `unclear`, or `likely_mismatch`. Omit `mismatch_flags` key if empty.
+When two figures are flagged for similar reasons, **write a distinct `issue` sentence for each** — specify the file name and what exactly differs. Do not copy the same `issue` text for two different entries.
+
+Use `severity`: only `"weak_overlap"`, `"unclear"`, or `"likely_mismatch"`. Omit `mismatch_flags` key if empty.
+
+**Duplicate image handling (required)**
+
+If `cleaned_images` contains any entry with `"duplicate_of"`, or if you observe that two images have identical descriptions, add a `duplicate_images` array to the output listing pairs:
+
+```json
+{
+  "duplicate_images": [
+    {"original": "images/image.png", "duplicate": "images/placeholder_figure.png"}
+  ]
+}
+```
+
+Omit `duplicate_images` if no duplicates are found.
 
 **Response format (required)**
 
@@ -53,11 +83,13 @@ Use `severity`: `"aligned"` is not used here—only add flags for `weak_overlap`
 
 **Required top-level keys**
 
-- `summary` (string): research inventory and how text and figures relate.
+- `summary` (string): research inventory, figure alignment, mismatches, and duplicate images if any.
+- `key_claims` (array): all quantitative claims and hypotheses from the text.
 - `text_blocks` (array): from `cleaned_text.text_blocks`; add `linked_images` only when justified.
 - `metadata_notes` (array): from `cleaned_text.metadata_notes`.
-- `images` (array): each item includes `relative_path`, `description`, `figure_context`, `readable`; optional `mentioned_in_text` when justified. **No** `visible_labels` array.
+- `images` (array): each item includes `relative_path`, `description`, `figure_context`, `readable`; optional `mentioned_in_text` and `duplicate_of` when present in input. **No** `visible_labels` array.
 - `cross_references` (array): `{"text_path", "image_path", "relationship"}` for **strong** links only.
 - `mismatch_flags` (array): as above; may be `[]`.
+- `duplicate_images` (array): pairs of identical figures; omit if none.
 
-If `cleaned_images.images` is empty, `images`, `cross_references`, and `mismatch_flags` may be `[]`.
+If `cleaned_images.images` is empty, `images`, `cross_references`, `mismatch_flags`, and `duplicate_images` may be `[]`.
