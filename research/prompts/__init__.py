@@ -5,6 +5,8 @@ from .loader import (
     load_openai_search_instruction,
     load_orchestrator_instruction,
     load_report_synthesizer_instruction,
+    load_research_index_instruction,
+    load_research_validator_instruction,
     prompts_root,
 )
 
@@ -13,5 +15,7 @@ __all__ = [
     "load_openai_search_instruction",
     "load_orchestrator_instruction",
     "load_report_synthesizer_instruction",
+    "load_research_index_instruction",
+    "load_research_validator_instruction",
     "prompts_root",
 ]

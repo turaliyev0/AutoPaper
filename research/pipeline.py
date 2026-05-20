@@ -8,25 +8,43 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .agents.analyst import ReportSynthesizer
+from .agents.analyst import ResearchIndexBuilder
 from .agents.orchestrator import OrchestratorAgent
 from .agents.search_coordinator import SearchCoordinator
+from .agents.validator import ResearchValidator
 from .clients.openai_client import OpenAIClient
 from .config import Settings
 from .manuscript_context import load_manuscript_context_from_execution
+from .research_storage import (
+    EXEC_GATHERED_AGGREGATE,
+    EXEC_INDEX_MD,
+    EXEC_INDEX_META,
+    EXEC_RESEARCH_DIR,
+    EXEC_VALIDATION_DIR,
+    RUN_GATHERED_AGGREGATE,
+    RUN_INDEX_MD,
+    RUN_INDEX_META,
+    RUN_RESEARCH_DIR,
+    RUN_VALIDATION_DIR,
+    layout_for_run_dir,
+    write_research_bundle,
+    write_validation_bundle,
+)
 from .schemas import (
     GatheredResearchBundle,
     OrchestratorPlan,
     PipelineRunResult,
     SynthesisReport,
+    ValidatedResearchBundle,
 )
 
 logger = logging.getLogger(__name__)
 
 PLAN_FILENAME = "05_orchestrator_plan.json"
-GATHERED_FILENAME = "06_gathered_research.json"
-REPORT_FILENAME = "07_final_report.md"
-REPORT_META_FILENAME = "07_final_report.meta.json"
+# Legacy aggregate filename (still written for tooling).
+GATHERED_FILENAME = EXEC_GATHERED_AGGREGATE
+REPORT_FILENAME = EXEC_INDEX_MD
+REPORT_META_FILENAME = EXEC_INDEX_META
 
 
 def _force_replan() -> bool:
@@ -44,7 +62,7 @@ def _load_existing_plan(path: Path) -> OrchestratorPlan | None:
 
 
 class ResearchPipeline:
-    """GPT-4o orchestrator → parallel gemini_search + openai_search → Gemini report."""
+    """Orchestrator → parallel search (one file per task) → validator → research index."""
 
     def __init__(self, settings: Settings, *, plan_only: bool = False) -> None:
         settings.validate_keys(plan_only=plan_only)
@@ -55,7 +73,64 @@ class ResearchPipeline:
             settings=settings,
         )
         self._search = SearchCoordinator.from_settings(settings)
-        self._synthesizer = ReportSynthesizer(settings)
+        self._validator = ResearchValidator(settings)
+        self._index_builder = ResearchIndexBuilder(settings)
+
+    async def _run_search_validate_index(
+        self,
+        run_dir: Path,
+        plan: OrchestratorPlan,
+        *,
+        manuscript=None,
+    ) -> tuple[GatheredResearchBundle, ValidatedResearchBundle, SynthesisReport | None, list[str]]:
+        errors: list[str] = []
+        research_dir_name, aggregate_name, validation_dir_name, index_name = layout_for_run_dir(
+            run_dir,
+        )
+
+        bundle = await self._search.gather(plan, manuscript=manuscript)
+        research_dir = write_research_bundle(
+            run_dir,
+            bundle,
+            research_dir_name=research_dir_name,
+            aggregate_filename=aggregate_name,
+        )
+
+        validated = await self._validator.validate_all(plan, research_dir)
+        validation_dir = write_validation_bundle(
+            run_dir,
+            validated,
+            validation_dir_name=validation_dir_name,
+        )
+
+        report: SynthesisReport | None = None
+        try:
+            report = await self._index_builder.build_index(
+                plan,
+                bundle,
+                validated,
+                research_dir=research_dir,
+                validation_dir=validation_dir,
+                manuscript=manuscript,
+            )
+            (run_dir / index_name).write_text(report.markdown_body, encoding="utf-8")
+            meta_name = index_name.replace(".md", ".meta.json")
+            self._write_index_meta(
+                run_dir,
+                plan,
+                bundle,
+                validated,
+                report,
+                filename=meta_name,
+                research_dir=research_dir_name,
+                validation_dir=validation_dir_name,
+            )
+        except Exception as exc:
+            msg = f"Research index builder failed: {exc}"
+            logger.exception(msg)
+            errors.append(msg)
+
+        return bundle, validated, report, errors
 
     async def run(self, research_goal: str) -> PipelineRunResult:
         errors: list[str] = []
@@ -68,29 +143,19 @@ class ResearchPipeline:
             encoding="utf-8",
         )
 
-        bundle = await self._search.gather(plan)
-        (run_dir / "02_gathered_research.json").write_text(
-            bundle.model_dump_json(indent=2),
-            encoding="utf-8",
+        bundle, validated, report, step_errors = await self._run_search_validate_index(
+            run_dir,
+            plan,
         )
-
-        report = None
-        try:
-            report = await self._synthesizer.synthesize(plan, bundle)
-            (run_dir / "03_final_report.md").write_text(
-                report.markdown_body,
-                encoding="utf-8",
-            )
-            self._write_report_meta(run_dir, plan, bundle, report, filename="03_final_report.meta.json")
-        except Exception as exc:
-            msg = f"Report synthesizer failed: {exc}"
-            logger.exception(msg)
-            errors.append(msg)
+        errors.extend(step_errors)
 
         manifest = {
             "research_goal_input": research_goal,
             "completed_at_utc": datetime.now(timezone.utc).isoformat(),
             "output_dir": str(run_dir),
+            "research_dir": RUN_RESEARCH_DIR,
+            "validation_dir": RUN_VALIDATION_DIR,
+            "index_file": RUN_INDEX_MD,
             "errors": errors,
         }
         (run_dir / "00_run_manifest.json").write_text(
@@ -101,32 +166,45 @@ class ResearchPipeline:
         return PipelineRunResult(
             plan=plan,
             bundle=bundle,
+            validated=validated,
             report=report,
             output_dir=str(run_dir),
             errors=errors,
         )
 
-    def _write_report_meta(
+    def _write_index_meta(
         self,
         run_dir: Path,
         plan: OrchestratorPlan,
         bundle: GatheredResearchBundle,
+        validated: ValidatedResearchBundle,
         report: SynthesisReport,
         *,
         filename: str,
+        research_dir: str,
+        validation_dir: str,
     ) -> None:
-        source_count = sum(len(r.sources) for r in bundle.results)
+        source_count = sum(len(r.sources) for r in bundle.results if r.success)
+        verdicts = [v.verdict for v in validated.results]
         meta = {
             "title": report.title,
             "generated_at_utc": report.generated_at_utc.isoformat(),
+            "artifact_layout": {
+                "research_dir": research_dir,
+                "validation_dir": validation_dir,
+            },
             "successful_search_tasks": len(bundle.successful_results),
             "total_search_tasks": len(bundle.results),
+            "validation_pass": verdicts.count("pass"),
+            "validation_warn": verdicts.count("warn"),
+            "validation_fail": verdicts.count("fail"),
             "total_sources_cited": source_count,
             "models": {
                 "orchestrator": self._settings.orchestrator_model,
                 "gemini_search": self._settings.gemini_search_model,
                 "openai_search": self._settings.openai_search_model,
-                "report_synthesizer": self._settings.report_synthesizer_model,
+                "research_validator": self._settings.research_validator_model,
+                "research_index": self._settings.research_index_model,
             },
             "main_topic": plan.research_goal.main_topic,
         }
@@ -152,7 +230,7 @@ class ResearchPipeline:
         *,
         reuse_plan: bool = True,
     ) -> PipelineRunResult:
-        """Continue a paper_input run: write ``05_``–``07_`` artifacts beside ``04_``."""
+        """Continue a paper_input run: write ``05_``–``08_`` artifacts beside ``04_``."""
         run_dir = execution_dir.expanduser().resolve()
         errors: list[str] = []
         logger.info("Research continuation in: %s", run_dir)
@@ -173,28 +251,15 @@ class ResearchPipeline:
             plan_path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
 
         bundle = None
+        validated = None
         report = None
         if not self._plan_only:
-            bundle = await self._search.gather(plan, manuscript=manuscript)
-            (run_dir / GATHERED_FILENAME).write_text(
-                bundle.model_dump_json(indent=2),
-                encoding="utf-8",
+            bundle, validated, report, step_errors = await self._run_search_validate_index(
+                run_dir,
+                plan,
+                manuscript=manuscript,
             )
-            try:
-                report = await self._synthesizer.synthesize(
-                    plan,
-                    bundle,
-                    manuscript=manuscript,
-                )
-                (run_dir / REPORT_FILENAME).write_text(
-                    report.markdown_body,
-                    encoding="utf-8",
-                )
-                self._write_report_meta(run_dir, plan, bundle, report, filename=REPORT_META_FILENAME)
-            except Exception as exc:
-                msg = f"Report synthesizer failed: {exc}"
-                logger.exception(msg)
-                errors.append(msg)
+            errors.extend(step_errors)
 
         manifest_path = run_dir / "00_run_manifest.json"
         if manifest_path.is_file():
@@ -205,14 +270,24 @@ class ResearchPipeline:
         else:
             manifest = {}
         steps = list(manifest.get("steps") or [])
-        for name in (PLAN_FILENAME, GATHERED_FILENAME, REPORT_FILENAME):
-            if (run_dir / name).is_file() and name not in steps:
+        for name in (
+            PLAN_FILENAME,
+            EXEC_RESEARCH_DIR,
+            EXEC_GATHERED_AGGREGATE,
+            EXEC_VALIDATION_DIR,
+            EXEC_INDEX_MD,
+        ):
+            path = run_dir / name
+            if path.exists() and name not in steps:
                 steps.append(name)
         manifest["steps"] = steps
         manifest["research_continuation"] = {
             "plan_only": self._plan_only,
             "reused_plan": reused_plan,
             "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "research_dir": EXEC_RESEARCH_DIR,
+            "validation_dir": EXEC_VALIDATION_DIR,
+            "index_file": EXEC_INDEX_MD,
             "errors": errors,
         }
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -220,6 +295,7 @@ class ResearchPipeline:
         return PipelineRunResult(
             plan=plan,
             bundle=bundle,
+            validated=validated,
             report=report,
             output_dir=str(run_dir),
             errors=errors,

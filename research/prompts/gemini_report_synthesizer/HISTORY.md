@@ -6,3 +6,4 @@
 | v002 | 2026-05-19 | Versioned `current.md` | Active agents only; structured sections; prompt-history rule. |
 | v003 | 2026-05-19 | Research pipeline | One H2 per required_output; Manuscript review section; hypothesis vs literature norms. |
 | v004 | 2026-05-19 | Evidence + design | Experimental design fidelity section; Evidence quality; anti-textbook prose. |
+| v005 | 2026-05-19 | Mandatory grounding | Synthesizer may only cite search_findings sources; no new literature from model memory. |

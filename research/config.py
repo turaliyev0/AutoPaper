@@ -155,6 +155,22 @@ class Settings(BaseSettings):
         ).strip()
 
     @property
+    def research_validator_api_key(self) -> str:
+        return self.report_synthesizer_api_key
+
+    @property
+    def research_validator_model(self) -> str:
+        return self.report_synthesizer_model
+
+    @property
+    def research_index_api_key(self) -> str:
+        return self.report_synthesizer_api_key
+
+    @property
+    def research_index_model(self) -> str:
+        return self.report_synthesizer_model
+
+    @property
     def report_synthesizer_model(self) -> str:
         raw = (
             self.research_report_synthesizer_model

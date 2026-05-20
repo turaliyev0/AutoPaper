@@ -5,7 +5,7 @@ Automated academic paper tooling in two pipelines:
 | Pipeline | CLI | Package | Output |
 |----------|-----|---------|--------|
 | **Paper input** | `autopaper --input <folder>` | `paper_input` | `output/execution_NNN/*.json` |
-| **Research** | `research "your goal"` | `research` | `output/research_runs/run_NNN/*` |
+| **Research** | `research "your goal"` | `research` | `output/research_runs/run_NNN/` (`02_research/`, `03_validation/`, `04_research_index.md`) |
 
 ## Quick start
 
@@ -23,7 +23,7 @@ Create a repo root `.env` with your API keys (see **Configuration** below).
 autopaper --input examples/neuro_stability
 ```
 
-**Research** (GPT-4o plan → parallel Gemini + OpenAI search → Gemini report):
+**Research** (GPT-4o plan → parallel search per task → validator → research index catalog):
 
 ```bash
 research "State of flexible neural implants 2024–2026"

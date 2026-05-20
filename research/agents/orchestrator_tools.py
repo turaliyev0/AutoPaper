@@ -89,9 +89,10 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "delegate_report_synthesis",
+            "name": "delegate_research_validation",
             "description": (
-                "Assign 1–2 synthesis-only tasks to report_synthesizer (no new searching)."
+                "Assign 1–3 validation focus areas for research_validator "
+                "(source traceability and summary clarity per search task; no new searching)."
             ),
             "parameters": {
                 "type": "object",
@@ -135,7 +136,7 @@ class OrchestratorPlanBuilder:
         self.required_outputs: list[str] = []
         self.gemini_tasks: list[str] = []
         self.openai_tasks: list[str] = []
-        self.synth_tasks: list[str] = []
+        self.validator_tasks: list[str] = []
         self.finalized: bool = False
 
     def tool_handlers(self) -> dict[str, Callable[..., dict[str, str]]]:
@@ -143,7 +144,7 @@ class OrchestratorPlanBuilder:
             "set_research_goal": self.set_research_goal,
             "delegate_gemini_search": self.delegate_gemini_search,
             "delegate_openai_search": self.delegate_openai_search,
-            "delegate_report_synthesis": self.delegate_report_synthesis,
+            "delegate_research_validation": self.delegate_research_validation,
             "finalize_orchestrator_plan": self.finalize_orchestrator_plan,
         }
 
@@ -175,12 +176,12 @@ class OrchestratorPlanBuilder:
         self.openai_tasks = cleaned
         return {"status": "ok", "message": f"Assigned {len(cleaned)} openai_search subtasks."}
 
-    def delegate_report_synthesis(self, *, tasks: list[str]) -> dict[str, str]:
+    def delegate_research_validation(self, *, tasks: list[str]) -> dict[str, str]:
         cleaned = [t.strip() for t in tasks if t.strip()]
         if not cleaned:
             return {"status": "error", "message": "tasks must be a non-empty list."}
-        self.synth_tasks = cleaned
-        return {"status": "ok", "message": f"Assigned {len(cleaned)} synthesizer tasks."}
+        self.validator_tasks = cleaned
+        return {"status": "ok", "message": f"Assigned {len(cleaned)} validator focus areas."}
 
     def finalize_orchestrator_plan(self) -> dict[str, str]:
         missing: list[str] = []
@@ -190,8 +191,8 @@ class OrchestratorPlanBuilder:
             missing.append("delegate_gemini_search")
         if not self.openai_tasks:
             missing.append("delegate_openai_search")
-        if not self.synth_tasks:
-            missing.append("delegate_report_synthesis")
+        if not self.validator_tasks:
+            missing.append("delegate_research_validation")
         if missing:
             return {
                 "status": "error",
@@ -225,9 +226,9 @@ class OrchestratorPlanBuilder:
                         tasks=self.openai_tasks,
                     ),
                     TargetAgent(
-                        agent_id="report_synthesizer",
-                        model=self._settings.report_synthesizer_model,
-                        tasks=self.synth_tasks,
+                        agent_id="research_validator",
+                        model=self._settings.research_validator_model,
+                        tasks=self.validator_tasks,
                     ),
                 ],
             ),

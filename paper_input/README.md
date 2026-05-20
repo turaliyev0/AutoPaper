@@ -50,6 +50,8 @@ bundle, run_dir = run_ingest_pipeline(Path("examples/neuro_stability"))
 autopaper --input examples/neuro_stability
 ```
 
+**Image validation:** after vision, unreadable or missing images stop the pipeline. After joiner, `mismatch_flags` trigger an interactive prompt (TTY), or use `--strict` / `--force-continue-on-mismatch`.
+
 Set `GOOGLE_API_KEY` and per-agent `PAPER_INPUT_*_MODEL` in repo root `.env`.
 
 ---

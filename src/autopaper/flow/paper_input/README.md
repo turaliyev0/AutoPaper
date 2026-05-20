@@ -53,9 +53,11 @@ flowchart LR
 | 01 | `01_raw_input_bundle.json` | `load_raw_input_bundle` | `paper_input/ingest.py` |
 | 02 | `02_cleaned_text.json` | `TextParserAgent` | `paper_input/agents/text_parser_agent.py` |
 | 03 | `03_cleaned_images.json` | `VisionAgent` | `paper_input/agents/vision_agent.py` |
+| 03b | *(gate)* | `assert_images_usable` | `paper_input/image_validation.py` — **stops** if any image unreadable |
 | 04 | `04_final_standardized.json` | `JoinerAgent` | `paper_input/agents/joiner_agent.py` |
+| 04b | *(gate)* | `resolve_mismatch_continuation` | prompts or aborts on `mismatch_flags` |
 | 05 | `05_orchestrator_plan.json` | Gemini research orchestrator (default after 04) | `research/pipeline.py` |
-| 06–07 | `06_gathered_research.json`, `07_final_report.md` | Optional (`--full-research`) | `research/` |
+| 06–08 | `06_research/`, `07_validation/`, `08_research_index.md` | Optional (`--full-research`) | `research/` |
 
 **Run directory:** `<repo>/output/execution_NNN/` — override with `AUTOPAPER_OUTPUT_DIR`, `output_root=`, or `autopaper --output-dir`.
 
@@ -66,6 +68,7 @@ flowchart LR
 | How | Where |
 |-----|--------|
 | CLI | `autopaper --input <paper-folder>` (default: plan at step 05; `--no-research` or `--full-research`) |
+| Image gates | Unreadable images → exit before joiner; mismatches → prompt (TTY) or `--strict` / `--force-continue-on-mismatch` |
 | Python | `from paper_input import run_ingest_pipeline` |
 
 ---
@@ -96,6 +99,7 @@ Fallback: `GOOGLE_API_KEY` / `GEMINI_API_KEY`, `GEMINI_MODEL`. Pipeline: `AUTOPA
 
 | Version | Change |
 |---------|--------|
+| 0.3.1 | Image validation gates (fatal unreadable; mismatch prompt / CLI flags) |
 | 0.3.0 | Package renamed `input` → `paper_input`; flow doc under `flow/paper_input/` |
 | 0.2.2 | Vision/Joiner prompts: mismatch flags, visible-only figures |
 | 0.2.1 | `google-genai` SDK |

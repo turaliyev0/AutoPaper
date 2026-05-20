@@ -6,6 +6,11 @@ import sys
 from importlib import import_module
 from pathlib import Path
 
+from paper_input.image_validation import (
+    ImageValidationError,
+    MismatchAbortError,
+    MismatchPolicy,
+)
 from paper_input.ingest import run_ingest_pipeline
 from paper_input.research_continue import ResearchContinuation
 
@@ -59,6 +64,17 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Print Gemini API calls (and OpenAI orchestrator tools) to stderr.",
     )
+    mismatch = parser.add_mutually_exclusive_group()
+    mismatch.add_argument(
+        "--force-continue-on-mismatch",
+        action="store_true",
+        help="Proceed after figure–text mismatch warnings without prompting.",
+    )
+    mismatch.add_argument(
+        "--strict",
+        action="store_true",
+        help="Stop when joiner reports figure–text mismatches (no prompt).",
+    )
     args = parser.parse_args(argv)
 
     if getattr(args, "log_gemini", False):
@@ -76,15 +92,27 @@ def main(argv: list[str] | None = None) -> None:
     else:
         research_mode = ResearchContinuation.PLAN
 
+    if args.strict:
+        mismatch_policy = MismatchPolicy.ABORT
+    elif args.force_continue_on_mismatch:
+        mismatch_policy = MismatchPolicy.CONTINUE
+    else:
+        mismatch_policy = MismatchPolicy.AUTO
+
     try:
         _, run_path = run_ingest_pipeline(
             root,
             output_root=out_arg,
             research=research_mode,
+            mismatch_policy=mismatch_policy,
+            stdin_is_tty=sys.stdin.isatty(),
         )
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
+    except (ImageValidationError, MismatchAbortError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
     except (RuntimeError, ImportError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc

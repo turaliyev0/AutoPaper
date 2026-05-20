@@ -4,6 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .image_validation import (
+    MismatchPolicy,
+    assert_images_usable,
+    collect_mismatch_warnings,
+    resolve_mismatch_continuation,
+)
 from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
 from .research_continue import ResearchContinuation, continue_research
 from .run_workspace import (
@@ -87,6 +93,8 @@ def run_ingest_pipeline(
     *,
     output_root: Path | None = None,
     research: ResearchContinuation = ResearchContinuation.PLAN,
+    mismatch_policy: MismatchPolicy = MismatchPolicy.AUTO,
+    stdin_is_tty: bool | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
     Pipeline under ``<output>/execution_NNN/`` (diagram: ``src/autopaper/flow/paper_input/README.md``):
@@ -99,6 +107,9 @@ def run_ingest_pipeline(
     - **05+** (optional) research orchestrator plan and, if enabled, search + report
 
     ``research``: ``off`` | ``plan`` (default) | ``full``.
+
+    After step 03, unreadable images raise :class:`~paper_input.image_validation.ImageValidationError`.
+    After step 04, non-empty ``mismatch_flags`` follow ``mismatch_policy`` (prompt / abort / continue).
 
     Returns ``(bundle, run_path)``.
     """
@@ -143,12 +154,20 @@ def run_ingest_pipeline(
     )
     append_run_manifest_steps(run_path, CLEANED_IMAGES_FILENAME)
 
+    assert_images_usable(bundle, cleaned_images)
+
     final = JoinerAgent().run(cleaned_text, cleaned_images)
     (run_path / FINAL_STANDARDIZED_FILENAME).write_text(
         json.dumps(final, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     append_run_manifest_steps(run_path, FINAL_STANDARDIZED_FILENAME)
+
+    resolve_mismatch_continuation(
+        collect_mismatch_warnings(final),
+        policy=mismatch_policy,
+        is_tty=stdin_is_tty,
+    )
 
     continue_research(run_path, mode=research)
 

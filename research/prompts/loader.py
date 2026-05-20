@@ -34,8 +34,18 @@ def load_openai_search_instruction() -> str:
 
 
 def load_report_synthesizer_instruction() -> str:
-    """Gemini report synthesizer: final Markdown."""
-    return _load_family_prompt("gemini_report_synthesizer")
+    """Legacy alias — research index catalog."""
+    return load_research_index_instruction()
+
+
+def load_research_validator_instruction() -> str:
+    """Gemini research validator: per-task source and clarity."""
+    return _load_family_prompt("gemini_research_validator")
+
+
+def load_research_index_instruction() -> str:
+    """Gemini research index: final catalog Markdown."""
+    return _load_family_prompt("gemini_research_index")
 
 
 def list_prompt_archive_versions(family: str) -> list[str]:

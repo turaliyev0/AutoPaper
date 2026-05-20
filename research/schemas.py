@@ -13,8 +13,10 @@ from .config import ACTIVE_SEARCH_AGENT_IDS
 SEARCH_AGENT_IDS = frozenset(
     {"gemini_search", "openai_search", "claude_search", "exa_search"},
 )
+RESEARCH_VALIDATOR_ID = "research_validator"
 REPORT_SYNTHESIZER_ID = "report_synthesizer"
 _LEGACY_SYNTHESIZER_IDS = frozenset({"claude_analyst", REPORT_SYNTHESIZER_ID})
+_VALIDATOR_IDS = frozenset({RESEARCH_VALIDATOR_ID, *(_LEGACY_SYNTHESIZER_IDS)})
 
 
 class OrchestratorConfig(BaseModel):
@@ -43,15 +45,16 @@ class ExecutionStrategy(BaseModel):
     def must_include_search_and_synthesis(cls, agents: list[TargetAgent]) -> list[TargetAgent]:
         ids = {a.agent_id for a in agents}
         has_search = bool(ids & ACTIVE_SEARCH_AGENT_IDS) or "gemini_explorer" in ids
-        has_synth = bool(ids & _LEGACY_SYNTHESIZER_IDS)
+        has_validator = bool(ids & _VALIDATOR_IDS)
         if not has_search:
             raise ValueError(
                 "execution_strategy must include at least one active search agent: "
                 "gemini_search, openai_search"
             )
-        if not has_synth:
+        if not has_validator:
             raise ValueError(
-                "execution_strategy must include report_synthesizer (or legacy claude_analyst)"
+                "execution_strategy must include research_validator "
+                "(legacy report_synthesizer / claude_analyst accepted)"
             )
         return agents
 
@@ -69,8 +72,16 @@ class OrchestratorPlan(BaseModel):
                 return agent
         return None
 
+    def validator_agent(self) -> TargetAgent | None:
+        return (
+            self.agent_by_id(RESEARCH_VALIDATOR_ID)
+            or self.agent_by_id(REPORT_SYNTHESIZER_ID)
+            or self.agent_by_id("claude_analyst")
+        )
+
     def synthesizer_agent(self) -> TargetAgent | None:
-        return self.agent_by_id(REPORT_SYNTHESIZER_ID) or self.agent_by_id("claude_analyst")
+        """Legacy alias for validator_agent (orchestrator plans before v1.5)."""
+        return self.validator_agent()
 
 
 class SourceSnippet(BaseModel):
@@ -115,9 +126,35 @@ class SynthesisReport(BaseModel):
     )
 
 
+class ValidatedTaskResult(BaseModel):
+    """Validator output for one search task artifact."""
+
+    slug: str
+    research_filename: str
+    agent_id: str
+    task: str
+    verdict: Literal["pass", "warn", "fail"]
+    source_quality: Literal["clear", "weak", "missing"] = "missing"
+    clarity: Literal["clear", "unclear", "contradictory"] = "unclear"
+    issues: list[str] = Field(default_factory=list)
+    source_notes: str = ""
+    validated_at_utc: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ValidatedResearchBundle(BaseModel):
+    plan: OrchestratorPlan
+    results: list[ValidatedTaskResult] = Field(default_factory=list)
+    completed_at_utc: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
 class PipelineRunResult(BaseModel):
     plan: OrchestratorPlan
     bundle: GatheredResearchBundle | None = None
+    validated: ValidatedResearchBundle | None = None
     report: SynthesisReport | None = None
     output_dir: str = ""
     errors: list[str] = Field(default_factory=list)

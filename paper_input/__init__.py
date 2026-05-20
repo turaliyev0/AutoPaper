@@ -1,5 +1,13 @@
 """Paper input rendering: layout, ingest, Gemini agents, and versioned prompts."""
 
+from .image_validation import (
+    ImageValidationError,
+    MismatchAbortError,
+    MismatchPolicy,
+    assert_images_usable,
+    collect_fatal_image_problems,
+    collect_mismatch_warnings,
+)
 from .ingest import (
     CLEANED_IMAGES_FILENAME,
     CLEANED_TEXT_FILENAME,
@@ -22,6 +30,12 @@ from .run_workspace import (
 )
 
 __all__ = [
+    "ImageValidationError",
+    "MismatchAbortError",
+    "MismatchPolicy",
+    "assert_images_usable",
+    "collect_fatal_image_problems",
+    "collect_mismatch_warnings",
     "CLEANED_IMAGES_FILENAME",
     "CLEANED_TEXT_FILENAME",
     "FINAL_STANDARDIZED_FILENAME",

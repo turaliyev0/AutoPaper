@@ -6,3 +6,4 @@
 | v002 | 2026-05-19 | Versioned `current.md` | Prompt-history rule; distinct from gemini_search voice. |
 | v003 | 2026-05-19 | Research pipeline | Figure review + actionable fixes; sources[]; manuscript context. |
 | v004 | 2026-05-19 | Design fidelity + citations | Mandate experimental_design critique; anti-textbook; named sources. |
+| v005 | 2026-05-19 | Mandatory grounding | Field norms/benchmarks must cite papers; manuscript critique labeled as inference. |

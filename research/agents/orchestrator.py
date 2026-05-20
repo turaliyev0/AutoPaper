@@ -41,6 +41,8 @@ class OrchestratorAgent:
             )
             if builder.main_topic and not builder.gemini_tasks:
                 hint += " (research goal was set but gemini_search was not delegated.)"
+            if builder.gemini_tasks and not builder.validator_tasks:
+                hint += " (search was delegated but research_validator was not.)"
             raise ValueError(hint)
 
         try:

@@ -52,8 +52,13 @@ async def continue_research_async(
             ok = len(result.bundle.successful_results)
             total = len(result.bundle.results)
             print(f"Search tasks: {ok}/{total} succeeded")
+        if result.validated:
+            fails = sum(1 for v in result.validated.results if v.verdict == "fail")
+            warns = sum(1 for v in result.validated.results if v.verdict == "warn")
+            print(f"Validation: {len(result.validated.results)} tasks ({fails} fail, {warns} warn)")
         if result.report:
-            print(f"Report: {execution_dir / '07_final_report.md'}")
+            print(f"Research index: {execution_dir / '08_research_index.md'}")
+            print(f"Per-task files: {execution_dir / '06_research'}/")
     if result.errors:
         for err in result.errors:
             print(f"Warning: {err}", flush=True)

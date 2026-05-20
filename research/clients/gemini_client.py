@@ -183,8 +183,21 @@ def gemini_search_client(settings: Settings) -> GeminiClient:
 
 
 def synthesizer_client(settings: Settings) -> GeminiClient:
+    """Legacy alias — index builder."""
+    return index_client(settings)
+
+
+def validator_client(settings: Settings) -> GeminiClient:
     return GeminiClient(
         settings,
-        api_key=settings.report_synthesizer_api_key,
-        model=settings.report_synthesizer_model,
+        api_key=settings.research_validator_api_key,
+        model=settings.research_validator_model,
+    )
+
+
+def index_client(settings: Settings) -> GeminiClient:
+    return GeminiClient(
+        settings,
+        api_key=settings.research_index_api_key,
+        model=settings.research_index_model,
     )
