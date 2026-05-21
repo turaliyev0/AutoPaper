@@ -10,9 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 from .config import ACTIVE_SEARCH_AGENT_IDS
 
 RESEARCH_VALIDATOR_ID = "research_validator"
-REPORT_SYNTHESIZER_ID = "report_synthesizer"
-_LEGACY_SYNTHESIZER_IDS = frozenset({"claude_analyst", REPORT_SYNTHESIZER_ID})
-_VALIDATOR_IDS = frozenset({RESEARCH_VALIDATOR_ID, *(_LEGACY_SYNTHESIZER_IDS)})
+_VALIDATOR_IDS = frozenset({RESEARCH_VALIDATOR_ID})
 
 
 class OrchestratorConfig(BaseModel):
@@ -49,8 +47,7 @@ class ExecutionStrategy(BaseModel):
             )
         if not has_validator:
             raise ValueError(
-                "execution_strategy must include research_validator "
-                "(legacy report_synthesizer / claude_analyst accepted)"
+                "execution_strategy must include research_validator"
             )
         return agents
 
@@ -69,15 +66,7 @@ class OrchestratorPlan(BaseModel):
         return None
 
     def validator_agent(self) -> TargetAgent | None:
-        return (
-            self.agent_by_id(RESEARCH_VALIDATOR_ID)
-            or self.agent_by_id(REPORT_SYNTHESIZER_ID)
-            or self.agent_by_id("claude_analyst")
-        )
-
-    def synthesizer_agent(self) -> TargetAgent | None:
-        """Legacy alias for validator_agent (orchestrator plans before v1.5)."""
-        return self.validator_agent()
+        return self.agent_by_id(RESEARCH_VALIDATOR_ID)
 
 
 class SourceSnippet(BaseModel):

@@ -8,7 +8,7 @@ import re
 import sys
 from pathlib import Path
 
-from run_store import PipelineRun, RunStatus
+from backend.run_store import PipelineRun, RunStatus
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]   # AutoPaper/
 
