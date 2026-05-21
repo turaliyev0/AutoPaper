@@ -140,6 +140,7 @@ def run_ingest_pipeline(
     from paper_input.agents.vision_agent import VisionAgent
     from paper_input.agents.joiner_agent import JoinerAgent
 
+    print("[STEP] Parsing paper text and metadata", flush=True)
     cleaned_text = TextParserAgent(bundle).run()
     (run_path / CLEANED_TEXT_FILENAME).write_text(
         json.dumps(cleaned_text, ensure_ascii=False, indent=2) + "\n",
@@ -147,6 +148,8 @@ def run_ingest_pipeline(
     )
     append_run_manifest_steps(run_path, CLEANED_TEXT_FILENAME)
 
+    n_images = len(bundle.get("image_paths", []))
+    print(f"[STEP] Analyzing {n_images} figure(s) with vision AI", flush=True)
     cleaned_images = VisionAgent(bundle).run()
     (run_path / CLEANED_IMAGES_FILENAME).write_text(
         json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
@@ -156,6 +159,7 @@ def run_ingest_pipeline(
 
     assert_images_usable(bundle, cleaned_images)
 
+    print("[STEP] Joining text and image descriptions", flush=True)
     final = JoinerAgent().run(cleaned_text, cleaned_images)
     from paper_input.image_registry import apply_image_exclusions
 

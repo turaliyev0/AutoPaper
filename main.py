@@ -46,6 +46,7 @@ class RunSummary(BaseModel):
     ieee_format:      str   = Field(description="'journal' or 'conference'")
     created_at:       str   = Field(description="ISO-8601 UTC timestamp")
     status:           str   = Field(description="pending | running | done | error")
+    current_step:     str   = Field(description="Latest [STEP] message from the running pipeline")
     execution_dir:    str   = Field(description="Absolute path to output execution folder")
     has_pdf:          bool  = Field(description="True when main.pdf exists and is readable")
     error:            str   = Field(description="Error message if status == error, else empty")

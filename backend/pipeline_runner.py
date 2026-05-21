@@ -49,7 +49,13 @@ async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str =
         assert proc.stdout is not None
         async for raw in proc.stdout:
             line = _clean(raw.decode("utf-8", errors="replace").rstrip())
-            if line:
+            if not line:
+                continue
+            if line.startswith("[STEP]"):
+                msg = line[6:].strip()
+                run.push({"type": "step", "message": msg})
+                run.push({"type": "log", "line": f"  >> {msg}"})
+            else:
                 run.push({"type": "log", "line": line})
                 _parse_progress(run, line)
 

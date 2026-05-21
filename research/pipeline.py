@@ -81,6 +81,9 @@ class ResearchPipeline:
             run_dir,
         )
 
+        n_tasks = sum(len(a.tasks) for a in plan.execution_strategy.target_agents
+                      if a.agent_id != "research_validator")
+        print(f"[STEP] Searching literature — {n_tasks} task(s) in parallel", flush=True)
         bundle = await self._search.gather(plan, manuscript=manuscript)
         research_dir = write_research_bundle(
             run_dir,
@@ -89,6 +92,7 @@ class ResearchPipeline:
             aggregate_filename=aggregate_name,
         )
 
+        print("[STEP] Validating research sources", flush=True)
         validated = await self._validator.validate_all(plan, research_dir)
         validation_dir = write_validation_bundle(
             run_dir,
@@ -96,6 +100,7 @@ class ResearchPipeline:
             validation_dir_name=validation_dir_name,
         )
 
+        print("[STEP] Building research index", flush=True)
         report: SynthesisReport | None = None
         try:
             report = await self._index_builder.build_index(
@@ -130,6 +135,7 @@ class ResearchPipeline:
         run_dir = self._allocate_run_dir()
         logger.info("Run directory: %s", run_dir)
 
+        print("[STEP] Building research plan", flush=True)
         plan = await self._orchestrator.create_plan(research_goal)
         (run_dir / "01_orchestrator_plan.json").write_text(
             plan.model_dump_json(indent=2),
@@ -240,6 +246,7 @@ class ResearchPipeline:
                 logger.info("Reusing existing orchestrator plan: %s", plan_path)
 
         if plan is None:
+            print("[STEP] Building research plan", flush=True)
             plan = await self._orchestrator.create_plan(research_goal)
             plan_path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
 

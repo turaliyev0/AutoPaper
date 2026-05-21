@@ -102,6 +102,7 @@ class EditorPipeline:
             "Editor Orchestrator",
             agent=f"OpenAI {self._settings.editor_orchestrator_model}",
         ):
+            print("[STEP] Planning manuscript structure", flush=True)
             log.arrow("Calling OpenAI Responses API (tool session)…")
             try:
                 plan = await self._orchestrator.create_plan(context)
@@ -121,6 +122,7 @@ class EditorPipeline:
             f"Section Writing ({len(plan.sections)} sections, parallel)",
             agent=f"OpenAI {self._settings.editor_section_writer_model}",
         ):
+            print(f"[STEP] Writing {len(plan.sections)} section(s)", flush=True)
             try:
                 sections = await self._coordinator.write_all(plan, context)
                 log.log_sections(sections)
@@ -141,6 +143,7 @@ class EditorPipeline:
             f"Figure Generation ({len(plan.figures)} figures)",
             agent=f"OpenAI {self._settings.editor_figure_model} + matplotlib subprocess",
         ):
+            print(f"[STEP] Generating {len(plan.figures)} figure(s)", flush=True)
             figures_dir = execution_dir / "11_figures"
             figures_dir.mkdir(parents=True, exist_ok=True)
             for fig_spec in plan.figures:
@@ -164,6 +167,7 @@ class EditorPipeline:
             "IEEE Validation",
             agent=f"Gemini {self._settings.default_gemini_model} + deterministic checks",
         ):
+            print("[STEP] Validating IEEE format compliance", flush=True)
             if sections:
                 try:
                     validation = await self._validator.validate_all(sections, plan, context)
@@ -183,6 +187,7 @@ class EditorPipeline:
         manuscript_tex = ""
         bib_content = ""
         with log.step("Assemble LaTeX (IEEEtran)"):
+            print("[STEP] Assembling LaTeX manuscript", flush=True)
             try:
                 manuscript_tex, bib_content = assemble_manuscript(plan, sections, figures, context)
                 write_manuscript(execution_dir, main_tex=manuscript_tex, references_bib=bib_content)
@@ -198,6 +203,7 @@ class EditorPipeline:
         # ── STEP 7: Compile PDF ────────────────────────────────────────
         pdf_path = ""
         with log.step("Compile PDF (pdflatex → bibtex → pdflatex × 2)"):
+            print("[STEP] Compiling PDF", flush=True)
             if manuscript_tex:
                 ms_dir = execution_dir / "13_ieee_manuscript"
                 log.arrow("Pass 1: pdflatex …")

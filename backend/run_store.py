@@ -29,6 +29,7 @@ class PipelineRun:
     pdf_path: str = ""
     log_lines: list[str] = field(default_factory=list)
     error: str = ""
+    current_step: str = ""
     sections_ok: int = 0
     sections_total: int = 0
     validation_pass: int = 0
@@ -54,6 +55,8 @@ class PipelineRun:
     def push(self, event: dict[str, Any]) -> None:
         if event.get("type") == "log":
             self.log_lines.append(event["line"])
+        elif event.get("type") == "step":
+            self.current_step = event.get("message", "")
         for q in list(self._subscribers):
             q.put_nowait(event)
 
@@ -64,6 +67,7 @@ class PipelineRun:
             "ieee_format": self.ieee_format,
             "created_at": self.created_at,
             "status": self.status.value,
+            "current_step": self.current_step,
             "execution_dir": self.execution_dir,
             "has_pdf": bool(self.pdf_path and Path(self.pdf_path).is_file()),
             "error": self.error,
