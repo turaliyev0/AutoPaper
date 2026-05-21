@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 AGENT_ID = "research_validator"
 
 
+_MISMATCH_PHRASE = "grounding in literature is optional"
+
+
+def _is_mismatch_review(task: str) -> bool:
+    """Return True when the task is a figure-text mismatch review that does not require sources."""
+    return _MISMATCH_PHRASE in task.lower()
+
+
 def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[str]]:
     """Rule-based floor before / without LLM."""
     if not result.success:
@@ -34,6 +42,25 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "issues": [result.error or "Search task failed."],
             "source_notes": "Task did not complete successfully.",
         }
+
+    # Figure-text mismatch reviews explicitly opt out of source requirements.
+    if _is_mismatch_review(result.task):
+        if not result.summary.strip():
+            return {
+                "verdict": "warn",
+                "source_quality": "missing",
+                "clarity": "unclear",
+                "issues": ["Mismatch review summary is empty."],
+                "source_notes": "Figure-text mismatch task — no sources required, but summary is missing.",
+            }
+        return {
+            "verdict": "pass",
+            "source_quality": "missing",
+            "clarity": "clear",
+            "issues": [],
+            "source_notes": "Figure-text mismatch task — no literature sources required per task instructions.",
+        }
+
     if not result.sources:
         return {
             "verdict": "fail",
@@ -101,8 +128,9 @@ class ResearchValidator:
         if verdict not in ("pass", "warn", "fail"):
             verdict = str(baseline["verdict"])
 
-        # Never upgrade a deterministic fail to pass.
-        if baseline["verdict"] == "fail" and verdict == "pass":
+        # Never upgrade a deterministic fail to pass, UNLESS this is a mismatch review
+        # (where the deterministic baseline already handles the pass correctly).
+        if baseline["verdict"] == "fail" and verdict == "pass" and not _is_mismatch_review(result.task):
             verdict = "fail"
 
         source_quality = str(data.get("source_quality") or baseline["source_quality"]).lower()

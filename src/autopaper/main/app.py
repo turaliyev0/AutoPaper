@@ -17,6 +17,38 @@ from paper_input.research_continue import ResearchContinuation
 _builtin_input = import_module("builtins").input
 
 
+def _run_editor(run_path: Path, ieee_format: str) -> None:
+    """Run the editor pipeline on a completed execution directory."""
+    from editor.pipeline import run_editor_pipeline
+    from editor.schemas import IeeeFormat
+
+    fmt: IeeeFormat = "conference" if ieee_format == "conference" else "journal"
+    print(f"\nEditor pipeline starting (format: {fmt}) …")
+    result = run_editor_pipeline(run_path, ieee_format=fmt)
+
+    ok_sections = len(result.successful_sections)
+    total_sections = len(result.sections)
+    ok_figures = len(result.successful_figures)
+    total_figures = len(result.figures)
+
+    pass_count = sum(1 for v in result.validation if v.verdict == "pass")
+    warn_count = sum(1 for v in result.validation if v.verdict == "warn")
+    fail_count = sum(1 for v in result.validation if v.verdict == "fail")
+
+    print(f"  Sections : {ok_sections}/{total_sections} OK")
+    print(f"  Figures  : {ok_figures}/{total_figures} OK")
+    print(f"  Validation: {pass_count} pass / {warn_count} warn / {fail_count} fail")
+    if result.manuscript_tex:
+        ms_dir = run_path / "13_ieee_manuscript"
+        print(f"  Manuscript: {ms_dir / 'main.tex'}")
+    if result.pdf_path:
+        print(f"  PDF       : {result.pdf_path}")
+    if result.errors:
+        print("  Editor errors:", file=sys.stderr)
+        for err in result.errors:
+            print(f"    - {err}", file=sys.stderr)
+
+
 def _resolve_root(args: argparse.Namespace) -> Path:
     if args.input:
         return Path(args.input).expanduser().resolve()
@@ -63,6 +95,20 @@ def main(argv: list[str] | None = None) -> None:
         "--log-gemini",
         action="store_true",
         help="Print Gemini API calls (and OpenAI orchestrator tools) to stderr.",
+    )
+    parser.add_argument(
+        "--ieee-edit",
+        action="store_true",
+        help=(
+            "After research completes, run the editor pipeline to produce an IEEE manuscript "
+            "(09_editor_plan.json → 13_ieee_manuscript/main.tex)."
+        ),
+    )
+    parser.add_argument(
+        "--ieee-format",
+        choices=["journal", "conference"],
+        default="journal",
+        help="IEEE document class to use (default: journal).",
     )
     mismatch = parser.add_mutually_exclusive_group()
     mismatch.add_argument(
@@ -118,6 +164,13 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(1) from exc
 
     print(f"Run directory: {run_path.resolve()}")
+
+    if args.ieee_edit:
+        try:
+            _run_editor(run_path, args.ieee_format)
+        except Exception as exc:
+            print(f"Editor pipeline failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":

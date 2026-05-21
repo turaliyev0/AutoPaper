@@ -41,6 +41,7 @@ class ManuscriptContext(BaseModel):
     mismatch_flags: list[MismatchFlag] = Field(default_factory=list)
     metadata_key_points: list[str] = Field(default_factory=list)
     experimental_design: list[str] = Field(default_factory=list)
+    key_claims: list[str] = Field(default_factory=list)
 
     def to_orchestrator_block(self) -> str:
         lines: list[str] = []
@@ -53,6 +54,12 @@ class ManuscriptContext(BaseModel):
             )
             for note in self.experimental_design:
                 lines.append(f"  - {note}")
+        if self.key_claims:
+            lines.append(
+                "Key quantitative claims from manuscript (embed into relevant tasks — do not omit):",
+            )
+            for claim in self.key_claims[:10]:
+                lines.append(f"  - {claim}")
         if self.mismatch_flags:
             lines.append("Priority figure–text issues (must appear in required_outputs and openai_search):")
             for flag in self.mismatch_flags:
@@ -68,6 +75,7 @@ class ManuscriptContext(BaseModel):
             "manuscript_summary_excerpt": self.summary[:2500] if self.summary else "",
             "target_journal": self.target_journal,
             "experimental_design": list(self.experimental_design),
+            "key_claims": list(self.key_claims),
             "mismatch_flags": [f.model_dump() for f in self.mismatch_flags],
         }
 
@@ -149,12 +157,16 @@ def manuscript_context_from_standardized(data: dict[str, Any]) -> ManuscriptCont
             if "target_journal:" in s.lower():
                 target_journal = s.split(":", 1)[-1].strip()
 
+    raw_claims = data.get("key_claims") or []
+    key_claims = _dedupe_lines([str(c) for c in raw_claims if isinstance(c, str)], max_items=12)
+
     return ManuscriptContext(
         summary=str(data.get("summary") or "").strip(),
         target_journal=target_journal,
         mismatch_flags=flags,
         metadata_key_points=meta_points,
         experimental_design=extract_experimental_design(data),
+        key_claims=key_claims,
     )
 
 

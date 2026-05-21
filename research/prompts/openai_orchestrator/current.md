@@ -29,17 +29,17 @@ All delegated subtasks must require **literature-grounded** outputs, not general
    - One output for **comparable studies** (prior in vivo / in vitro work matching the design).
    - One output for **methods and materials** contextualization.
    - One output for the **experimental-design critique** when `manuscript.experimental_design` is provided.
-   - One output for the **figure–text mismatch review** when mismatch flags are listed.
+   - One output for the **figure–text mismatch review** when mismatch flags are listed — this is **mandatory and must result in a dedicated openai_search subtask**; it cannot be merged with or replaced by quantitative benchmarks or design critique.
    - **Do not** include a "validation-ready summary" or any output that is a pipeline constraint rather than research content.
 2. **`delegate_gemini_search`** — **2–3 distinct** subtasks; topics must not overlap with each other or with openai_search tasks.
-3. **`delegate_openai_search`** — **2–3 distinct** subtasks; include the design critique; do not duplicate gemini_search topics.
+3. **`delegate_openai_search`** — **2–3 distinct** subtasks; **one subtask must be the figure–text mismatch review when mismatch_flags are present** (design critique and key-claims benchmarks count as separate subtasks); do not duplicate gemini_search topics.
 4. **`delegate_research_validation`** — 1–3 focus areas (e.g. verify DOI/author–year traceability; flag vague summaries; check figure–text tasks).
 5. **`finalize_orchestrator_plan`**
 
 ## Subtask content rules
 
 - Copy **specific** materials, metrics, hypotheses, **exact `experimental_design` bullets**, and **mismatch_flags** from the user message into the relevant task descriptions.
-- If `manuscript.key_claims` is present, embed at least **2–3 specific quantitative values** (e.g. `~3 GPa`, `SNR > 15 dB`, `n=12`, `180 days`) from those claims into the task that most directly tests them.
+- If `manuscript.key_claims` is present, embed at least **2–3 specific quantitative values** (e.g. `~3 GPa`, `SNR > 15 dB`, `n=12`, `180 days`) from those claims into the tasks that test them. In particular, **always embed the primary endpoint metrics** (time horizon, SNR target, n, channel count) into the experimental-design critique task description — fill in the empty `METRICS FOR ANALYSIS` section with these values rather than leaving it blank. A quantitative-claims benchmark task does **not** replace or count as a figure–text mismatch task — both must be present when mismatch_flags exist.
 - Gemini and OpenAI tasks must be **distinct angles** — do not assign "critique design" to both; assign design critique to openai_search and background/comparable work to gemini_search.
 - **Figure–text mismatch tasks** are an exception to the grounding rule: these tasks must describe the mismatch clearly and recommend a fix, but they do **not** require peer-reviewed sources — add the note "grounding in literature is optional for figure–text mismatch review" explicitly in the task description.
 - Do not request live web search or URLs (no exa agent).

@@ -19,15 +19,34 @@ Polished **Markdown only** (no JSON wrapper, no outer code fence).
 
 1. Title (`#`) — research run catalog for `main_topic`
 2. `## Run overview` — counts: search tasks, passed/warn/failed validations, output directories
-3. `## Research artifacts` — table:
+3. `## ⚠️ Important: Manual DOI verification required` — a fixed notice block (see wording below); reproduce it verbatim in every index.
+4. `## Research artifacts` — table:
 
    | File | Agent | Subtask (short) | Success | Validation | One-line contents |
 
    One row per research task file (from manifest).
-4. `## Validation summary` — bullet list of `fail` and `warn` items with `issues`
-5. `## Required outputs map` — for each `required_outputs` entry, which research file(s) may relate (best-effort; say "none clearly matched" if unknown)
-6. `## Key claims coverage` — if `manuscript.key_claims` is present, list each claim and note which research file(s) addressed it (or "not addressed" if none). Only include claims from the input; do not invent new ones.
-7. `## Limitations` — failed search tasks, failed validations, missing sources, claims not addressed
+5. `## Validation summary` — bullet list of `fail` and `warn` items with `issues`
+6. `## Required outputs map` — for each `required_outputs` entry, which research file(s) may relate (best-effort; say "none clearly matched" if unknown)
+7. `## Key claims coverage` — if `manuscript.key_claims` is present, list each claim and note which research file(s) addressed it (or "not addressed" if none). Only include claims from the input; do not invent new ones.
+8. `## Limitations` — failed search tasks, failed validations, missing sources, claims not addressed
+
+### Wording for section 3 (reproduce verbatim)
+
+```
+## ⚠️ Important: Manual DOI verification required
+
+The automated validator checks that citations are **well-formatted** (author, year, title present).
+It **cannot** verify that a DOI resolves to the correct paper — language models frequently produce
+plausible-looking but incorrect DOIs (wrong journal suffix, wrong issue/page numbers), and may
+describe a paper's content incorrectly or confuse two papers by the same first author.
+
+**Before using any cited source in a manuscript, independently verify:**
+1. The DOI resolves to the correct paper (paste it into [doi.org](https://doi.org)).
+2. The paper's actual content matches the description in the research file.
+3. The quantitative values attributed to the paper (SNR thresholds, modulus values, n counts, etc.) appear in the paper itself.
+
+Validation status `pass` or `source_quality: clear` means the citation format is acceptable — not that the citations are correct.
+```
 
 ## Writing rules
 

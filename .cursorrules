@@ -1,9 +1,0 @@
-You are an expert developer on AutoPaper (Python 3.11+).
-
-Packages:
-- `paper_input` — Gemini agents ingest paper folders → JSON under `output/execution_NNN/`
-- `research` — GPT-4o orchestrator; per-task files in `06_research/`; `research_validator`; index in `08_research_index.md`
-
-Style: modular, type-hinted, Pydantic validation, async where appropriate, clean API error handling.
-
-Flow docs: `src/autopaper/flow/`. Orchestrator and search outputs must match `research/schemas.py`.

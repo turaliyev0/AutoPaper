@@ -55,19 +55,31 @@ def _parse_sources(data: dict[str, Any]) -> list[SourceSnippet]:
         authors = str(item.get("authors") or "").strip()
         year = str(item.get("year") or "").strip()
         doi = str(item.get("doi") or "").strip()
+        journal = str(item.get("journal") or "").strip()
+
+        # Build a readable citation string: "Authors (Year). Title. Journal."
         if authors and year and title and authors not in title:
             title = f"{authors} ({year}). {title}"
         elif year and year not in title and title:
             title = f"{title} ({year})"
+        if journal and journal not in title:
+            title = f"{title}. {journal}"
+
+        # DOIs from Gemini are frequently wrong — only embed if present (OpenAI search may supply them).
         if doi and doi not in title and doi not in excerpt:
             excerpt = f"DOI: {doi}. {excerpt}".strip()
+
         if title or url:
             out.append(SourceSnippet(url=url or "#", title=title or url, excerpt=excerpt))
     return out
 
 
 def _has_citable_sources(sources: list[SourceSnippet]) -> bool:
-    """At least one source looks like a real bibliographic entry, not a placeholder title."""
+    """At least one source looks like a real bibliographic entry (author + year + title).
+
+    DOI presence is no longer required — Gemini outputs intentionally omit DOIs.
+    A source with author-year in the title and a non-trivial title length is sufficient.
+    """
     for src in sources:
         blob = f"{src.title} {src.excerpt} {src.url}"
         if _DOI_PATTERN.search(blob):
