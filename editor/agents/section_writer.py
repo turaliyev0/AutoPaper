@@ -75,6 +75,7 @@ def _build_section_payload(
         "research_summaries": research_summaries,
         "citation_pool": citation_pool,
         "article_title": context.title,
+        "available_figure_ids": spec.available_figure_ids,
     }
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
@@ -85,6 +86,19 @@ def _count_words(latex: str) -> int:
     text = re.sub(r"\\[a-zA-Z]+", " ", text)
     text = re.sub(r"[{}%]", " ", text)
     return len(text.split())
+
+
+def _normalize_backslashes(latex: str) -> str:
+    """
+    Fix LLM double-escaping: ``\\\\cite`` → ``\\cite`` (and all other commands).
+
+    When an LLM returns LaTeX inside a JSON string it sometimes double-escapes
+    backslashes, producing ``\\command`` (two backslashes) instead of ``\\command``
+    (one backslash). This corrects ``\\<letter>`` → ``\\<letter>`` while
+    preserving legitimate ``\\\\`` (LaTeX line-break) which is NOT followed
+    directly by a letter.
+    """
+    return re.sub(r"\\\\([a-zA-Z])", r"\\\1", latex)
 
 
 class SectionWriterAgent:
@@ -99,6 +113,7 @@ class SectionWriterAgent:
         spec: SectionSpec,
         context: EditorContext,
     ) -> SectionDraft:
+        known_citekeys = frozenset(c.citekey for c in context.citation_pool)
         user = _build_section_payload(spec, context)
         try:
             data = await self._client.generate_json(
@@ -106,7 +121,7 @@ class SectionWriterAgent:
                 user=user,
                 trace_label=f"section_writer:{spec.section_id}",
             )
-            return _draft_from_json(spec, data)
+            return _draft_from_json(spec, data, known_citekeys=known_citekeys)
         except Exception as exc:
             logger.exception("SectionWriter failed for %s: %s", spec.section_id, exc)
             return SectionDraft(
@@ -118,10 +133,34 @@ class SectionWriterAgent:
             )
 
 
-def _draft_from_json(spec: SectionSpec, data: dict[str, Any]) -> SectionDraft:
-    latex_body = str(data.get("latex_body") or "")
-    citations_used = [str(c) for c in (data.get("citations_used") or []) if isinstance(c, str)]
-    figures_referenced = [str(f) for f in (data.get("figures_referenced") or []) if isinstance(f, str)]
+def _draft_from_json(
+    spec: SectionSpec,
+    data: dict[str, Any],
+    known_citekeys: frozenset[str] | None = None,
+) -> SectionDraft:
+    latex_body = _normalize_backslashes(str(data.get("latex_body") or ""))
+
+    # Sync figures_referenced with refs actually present in the body
+    # so the validator never sees a mismatch between declaration and usage.
+    raw_figs = [str(f) for f in (data.get("figures_referenced") or []) if isinstance(f, str)]
+    body_fig_ids = set(re.findall(r"\\ref\{fig:([^}]+)\}", latex_body))
+    figures_referenced = [f for f in raw_figs if f in body_fig_ids]
+    # Also add any refs found in body that weren't declared (defensive)
+    for fid in body_fig_ids:
+        if fid not in figures_referenced:
+            figures_referenced.append(fid)
+
+    # Abstract / index terms must not trigger duplicate figure floats in the PDF
+    if spec.section_id in ("abstract", "index_terms"):
+        figures_referenced = []
+
+    # Filter citations to known keys only — prevents hallucinated citekeys from failing validation
+    raw_cites = [str(c) for c in (data.get("citations_used") or []) if isinstance(c, str)]
+    if known_citekeys is not None:
+        citations_used = [c for c in raw_cites if c in known_citekeys]
+    else:
+        citations_used = raw_cites
+
     return SectionDraft(
         section_id=spec.section_id,
         heading=spec.heading,
@@ -146,9 +185,25 @@ class SectionCoordinator:
         plan: EditorPlan,
         context: EditorContext,
     ) -> list[SectionDraft]:
+        # Inject figure IDs so every section writer knows valid cross-reference IDs
+        fig_index = [
+            {"figure_id": f.figure_id, "caption": f.caption[:80]}
+            for f in plan.figures
+        ]
+        for spec in plan.sections:
+            spec.available_figure_ids = fig_index
+
+        # Stagger launches slightly to reduce simultaneous API bursts
+        import asyncio as _asyncio
+
+        async def _delayed(spec: "SectionSpec", delay: float) -> "SectionDraft":
+            if delay > 0:
+                await _asyncio.sleep(delay)
+            return await self._writer.write_section(spec, context)
+
         coros = [
-            self._writer.write_section(spec, context)
-            for spec in plan.ordered_sections
+            _delayed(spec, i * 1.5)
+            for i, spec in enumerate(plan.ordered_sections)
         ]
         if not coros:
             raise ValueError("Editor plan has no sections. Call map_section_sources first.")

@@ -17,14 +17,15 @@ from paper_input.research_continue import ResearchContinuation
 _builtin_input = import_module("builtins").input
 
 
-def _run_editor(run_path: Path, ieee_format: str) -> None:
+def _run_editor(run_path: Path, ieee_format: str, *, verbose_log: bool = True) -> None:
     """Run the editor pipeline on a completed execution directory."""
     from editor.pipeline import run_editor_pipeline
     from editor.schemas import IeeeFormat
 
     fmt: IeeeFormat = "conference" if ieee_format == "conference" else "journal"
-    print(f"\nEditor pipeline starting (format: {fmt}) …")
-    result = run_editor_pipeline(run_path, ieee_format=fmt)
+    if not verbose_log:
+        print(f"\nEditor pipeline starting (format: {fmt}) …")
+    result = run_editor_pipeline(run_path, ieee_format=fmt, verbose_log=verbose_log)
 
     ok_sections = len(result.successful_sections)
     total_sections = len(result.sections)
@@ -110,6 +111,11 @@ def main(argv: list[str] | None = None) -> None:
         default="journal",
         help="IEEE document class to use (default: journal).",
     )
+    parser.add_argument(
+        "--log-editor",
+        action="store_true",
+        help="Print live step-by-step editor pipeline log to stderr (always written to editor_run.log).",
+    )
     mismatch = parser.add_mutually_exclusive_group()
     mismatch.add_argument(
         "--force-continue-on-mismatch",
@@ -167,7 +173,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.ieee_edit:
         try:
-            _run_editor(run_path, args.ieee_format)
+            _run_editor(run_path, args.ieee_format, verbose_log=getattr(args, "log_editor", True))
         except Exception as exc:
             print(f"Editor pipeline failed: {exc}", file=sys.stderr)
             raise SystemExit(1) from exc

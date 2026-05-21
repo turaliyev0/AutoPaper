@@ -135,6 +135,14 @@ class FigureAgent:
         figures_dir: Path,
         context: EditorContext,
     ) -> FigureResult:
+        if spec.reuse_path and spec.reuse_path.strip() in context.manuscript.excluded_paths():
+            logger.warning(
+                "Figure %s: reuse_path '%s' is excluded; generating new figure instead.",
+                spec.figure_id,
+                spec.reuse_path,
+            )
+            spec = spec.model_copy(update={"reuse_path": ""})
+
         # --- reuse existing image if available ---
         if spec.reuse_path:
             # Search order: input_root (original paper folder), then execution_dir

@@ -46,6 +46,10 @@ class SectionSpec(BaseModel):
     )
     max_words: int = 600
     notes: str = ""
+    available_figure_ids: list[dict] = Field(
+        default_factory=list,
+        description="Injected by SectionCoordinator: [{figure_id, caption}] for cross-references.",
+    )
 
 
 class FigureSpec(BaseModel):

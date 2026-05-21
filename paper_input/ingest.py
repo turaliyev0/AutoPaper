@@ -157,6 +157,9 @@ def run_ingest_pipeline(
     assert_images_usable(bundle, cleaned_images)
 
     final = JoinerAgent().run(cleaned_text, cleaned_images)
+    from paper_input.image_registry import apply_image_exclusions
+
+    final = apply_image_exclusions(final)
     (run_path / FINAL_STANDARDIZED_FILENAME).write_text(
         json.dumps(final, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

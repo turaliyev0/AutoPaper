@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from paper_input.image_registry import apply_image_exclusions, excluded_image_paths, usable_images
+
 from .schemas import CitationEntry, IeeeFormat
 
 
@@ -71,6 +73,16 @@ class ManuscriptData:
     @property
     def images(self) -> list[dict[str, Any]]:
         return [i for i in (self._data.get("images") or []) if isinstance(i, dict)]
+
+    @property
+    def excluded_images(self) -> list[dict[str, Any]]:
+        return [e for e in (self._data.get("excluded_images") or []) if isinstance(e, dict)]
+
+    def excluded_paths(self) -> frozenset[str]:
+        return excluded_image_paths(self._data)
+
+    def usable_images(self) -> list[dict[str, Any]]:
+        return usable_images(self._data)
 
     @property
     def mismatch_flags(self) -> list[dict[str, Any]]:
@@ -200,13 +212,22 @@ class EditorContext:
             lines.append(f"  [{art.verdict.upper()}] {art.slug}")
             lines.append(f"    task: {art.task[:100]}")
         lines.append("")
-        lines.append("## Images available (use these exact paths in reuse_path)")
-        for img in self.manuscript.images:
+        lines.append("## Images available for reuse_path (usable only — do NOT use excluded paths)")
+        usable = self.manuscript.usable_images()
+        for img in usable:
             path = img.get("relative_path") or img.get("image_path") or ""
             desc = img.get("description") or ""
             lines.append(f"  - {path}: {str(desc)[:80]}")
-        if not self.manuscript.images:
-            lines.append("  (no images found)")
+        if not usable:
+            lines.append("  (no usable images — generate new figures with matplotlib instead)")
+        if self.manuscript.excluded_images:
+            lines.append("")
+            lines.append("## Excluded images (NEVER reuse_path or cite as manuscript figures)")
+            for ex in self.manuscript.excluded_images:
+                path = ex.get("path") or ""
+                reason = ex.get("reason") or "excluded"
+                issue = str(ex.get("issue") or "")[:100]
+                lines.append(f"  - {path} [{reason}]: {issue}")
         return "\n".join(lines)
 
 
@@ -313,6 +334,7 @@ def load_editor_context(
     if not final_path.is_file():
         raise FileNotFoundError(f"04_final_standardized.json not found in {execution_dir}")
     manuscript_data = json.loads(final_path.read_text(encoding="utf-8"))
+    manuscript_data = apply_image_exclusions(manuscript_data)
     manuscript = ManuscriptData(manuscript_data)
 
     # --- 07 validation ---

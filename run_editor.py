@@ -5,11 +5,10 @@ from pathlib import Path
 from editor.pipeline import run_editor_pipeline
 
 run_dir = Path("output/execution_001")
-print(f"Running editor pipeline on {run_dir} ...")
-result = run_editor_pipeline(run_dir, ieee_format="journal")
+result = run_editor_pipeline(run_dir, ieee_format="journal", verbose_log=True)
 
 print()
-print("=== RESULTS ===")
+print("=== SUMMARY ===")
 if result.plan:
     print(f"Plan     : {len(result.plan.sections)} sections, {len(result.plan.figures)} figures")
     print(f"Title    : {result.plan.article_title}")

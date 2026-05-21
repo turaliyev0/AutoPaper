@@ -61,6 +61,10 @@ When two figures are flagged for similar reasons, **write a distinct `issue` sen
 
 Use `severity`: only `"weak_overlap"`, `"unclear"`, or `"likely_mismatch"`. Omit `mismatch_flags` key if empty.
 
+**Unrelated / excluded images (required)**
+
+When a figure is **not part of the manuscript study** (wrong materials, wrong comparison, stock photo, placeholder unrelated to text), set `severity` to `"likely_mismatch"`. The pipeline will **exclude** that path from all later steps (editor figures, reuse_path, IEEE PDF). Do not cross-link excluded figures in `cross_references`.
+
 **Duplicate image handling (required)**
 
 If `cleaned_images` contains any entry with `"duplicate_of"`, or if you observe that two images have identical descriptions, add a `duplicate_images` array to the output listing pairs:

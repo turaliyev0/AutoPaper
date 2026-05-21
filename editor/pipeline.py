@@ -18,6 +18,8 @@ from .agents.section_writer import SectionCoordinator, SectionWriterAgent
 from .assembler import assemble_manuscript
 from .config import EditorSettings, load_editor_settings
 from .context import EditorContext, load_editor_context
+from .plan_filters import filter_editor_plan_figures
+from .run_log import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
 from .storage import (
     write_editor_plan,
@@ -77,89 +79,142 @@ class EditorPipeline:
         execution_dir: Path,
         *,
         ieee_format: IeeeFormat = "journal",
+        verbose_log: bool = True,
     ) -> EditorRunResult:
         errors: list[str] = []
+        log = RunLog(execution_dir, verbose=verbose_log)
+        log.header(execution_dir, ieee_format)
 
-        # --- load context ---
-        try:
-            context = load_editor_context(execution_dir, ieee_format=ieee_format)
-        except FileNotFoundError as exc:
-            return EditorRunResult(errors=[str(exc)])
-
-        # --- orchestrate plan ---
-        try:
-            plan = await self._orchestrator.create_plan(context)
-        except Exception as exc:
-            logger.error("Editor orchestrator failed: %s", exc)
-            return EditorRunResult(errors=[f"Orchestrator failed: {exc}"])
-
-        write_editor_plan(execution_dir, plan)
-        logger.info("Editor plan written to 09_editor_plan.json")
-
-        # --- write sections ---
-        try:
-            sections = await self._coordinator.write_all(plan, context)
-        except Exception as exc:
-            logger.error("Section coordinator failed: %s", exc)
-            errors.append(f"Section writing failed: {exc}")
-            sections = []
-
-        if sections:
-            write_sections(execution_dir, sections)
-            ok = sum(1 for s in sections if s.success)
-            logger.info("Sections: %d/%d succeeded", ok, len(sections))
-            if ok < len(sections):
-                errors.append(
-                    f"{len(sections) - ok} section(s) failed: "
-                    + ", ".join(s.section_id for s in sections if not s.success)
-                )
-
-        # --- generate figures ---
-        figures_dir = execution_dir / "11_figures"
-        figures_dir.mkdir(parents=True, exist_ok=True)
-        figures: list[FigureResult] = []
-        for fig_spec in plan.figures:
-            result = await self._figure_agent.generate(fig_spec, figures_dir, context)
-            figures.append(result)
-            if not result.success:
-                errors.append(f"Figure '{fig_spec.figure_id}' failed: {result.error}")
-
-        if figures:
-            write_figures(execution_dir, figures)
-
-        # --- validate sections ---
-        validation = []
-        if sections:
+        # ── STEP 1: Load context ────────────────────────────────────────
+        context: EditorContext | None = None
+        with log.step("Load context"):
             try:
-                validation = await self._validator.validate_all(sections, plan, context)
-                write_editor_validation(execution_dir, validation)
-            except Exception as exc:
-                logger.error("IEEE validator failed: %s", exc)
-                errors.append(f"Validation failed: {exc}")
+                context = load_editor_context(execution_dir, ieee_format=ieee_format)
+                log.log_context(context)
+            except FileNotFoundError as exc:
+                log.fail(str(exc))
+                log.footer(EditorRunResult(errors=[str(exc)]))
+                return EditorRunResult(errors=[str(exc)])
 
-        # --- assemble LaTeX ---
+        # ── STEP 2: Editor Orchestrator ────────────────────────────────
+        plan: EditorPlan | None = None
+        with log.step(
+            "Editor Orchestrator",
+            agent=f"OpenAI {self._settings.editor_orchestrator_model}",
+        ):
+            log.arrow("Calling OpenAI Responses API (tool session)…")
+            try:
+                plan = await self._orchestrator.create_plan(context)
+                plan = filter_editor_plan_figures(plan, context)
+                log.log_plan(plan)
+                write_editor_plan(execution_dir, plan)
+                log.ok("09_editor_plan.json written")
+            except Exception as exc:
+                log.fail(f"Orchestrator failed: {exc}")
+                errors.append(f"Orchestrator failed: {exc}")
+                log.footer(EditorRunResult(errors=errors))
+                return EditorRunResult(errors=errors)
+
+        # ── STEP 3: Section Writing ────────────────────────────────────
+        sections: list = []
+        with log.step(
+            f"Section Writing ({len(plan.sections)} sections, parallel)",
+            agent=f"OpenAI {self._settings.editor_section_writer_model}",
+        ):
+            try:
+                sections = await self._coordinator.write_all(plan, context)
+                log.log_sections(sections)
+                write_sections(execution_dir, sections)
+                ok_count = sum(1 for s in sections if s.success)
+                log.ok(f"{ok_count}/{len(sections)} sections written → 10_sections/")
+                if ok_count < len(sections):
+                    failed = ", ".join(s.section_id for s in sections if not s.success)
+                    errors.append(f"{len(sections) - ok_count} section(s) failed: {failed}")
+            except Exception as exc:
+                log.fail(f"Section coordinator failed: {exc}")
+                errors.append(f"Section writing failed: {exc}")
+
+        # ── STEP 4: Figure Generation ──────────────────────────────────
+        figures: list[FigureResult] = []
+        fig_spec_map = {s.figure_id: s for s in plan.figures}
+        with log.step(
+            f"Figure Generation ({len(plan.figures)} figures)",
+            agent=f"OpenAI {self._settings.editor_figure_model} + matplotlib subprocess",
+        ):
+            figures_dir = execution_dir / "11_figures"
+            figures_dir.mkdir(parents=True, exist_ok=True)
+            for fig_spec in plan.figures:
+                log.arrow(f"Generating {fig_spec.figure_id} …")
+                result = await self._figure_agent.generate(fig_spec, figures_dir, context)
+                figures.append(result)
+                if result.success:
+                    log.ok(f"{fig_spec.figure_id}: done (retries={result.retries})")
+                else:
+                    log.fail(f"{fig_spec.figure_id}: {(result.error or '')[:80]}")
+                    errors.append(f"Figure '{fig_spec.figure_id}' failed: {result.error}")
+            log.log_figures(figures, fig_spec_map)
+            if figures:
+                write_figures(execution_dir, figures)
+                ok_f = sum(1 for f in figures if f.success)
+                log.ok(f"{ok_f}/{len(figures)} figures → 11_figures/")
+
+        # ── STEP 5: IEEE Validation ────────────────────────────────────
+        validation: list = []
+        with log.step(
+            "IEEE Validation",
+            agent=f"Gemini {self._settings.default_gemini_model} + deterministic checks",
+        ):
+            if sections:
+                try:
+                    validation = await self._validator.validate_all(sections, plan, context)
+                    log.log_validation(validation)
+                    write_editor_validation(execution_dir, validation)
+                    v_pass = sum(1 for v in validation if v.verdict == "pass")
+                    v_warn = sum(1 for v in validation if v.verdict == "warn")
+                    v_fail = sum(1 for v in validation if v.verdict == "fail")
+                    log.ok(f"Results: {v_pass} pass / {v_warn} warn / {v_fail} fail → 12_editor_validation/")
+                except Exception as exc:
+                    log.fail(f"Validator failed: {exc}")
+                    errors.append(f"Validation failed: {exc}")
+            else:
+                log.warn("No sections to validate.")
+
+        # ── STEP 6: Assemble LaTeX ─────────────────────────────────────
         manuscript_tex = ""
         bib_content = ""
-        try:
-            manuscript_tex, bib_content = assemble_manuscript(plan, sections, figures, context)
-            write_manuscript(execution_dir, main_tex=manuscript_tex, references_bib=bib_content)
-            logger.info("Manuscript written to 13_ieee_manuscript/main.tex")
-        except Exception as exc:
-            logger.error("Assembler failed: %s", exc)
-            errors.append(f"Assembler failed: {exc}")
+        with log.step("Assemble LaTeX (IEEEtran)"):
+            try:
+                manuscript_tex, bib_content = assemble_manuscript(plan, sections, figures, context)
+                write_manuscript(execution_dir, main_tex=manuscript_tex, references_bib=bib_content)
+                lines = manuscript_tex.count("\n")
+                bib_entries = bib_content.count("@article")
+                log.ok(f"main.tex written ({lines} lines)")
+                log.ok(f"references.bib written ({bib_entries} entries)")
+                log.ok("→ 13_ieee_manuscript/")
+            except Exception as exc:
+                log.fail(f"Assembler failed: {exc}")
+                errors.append(f"Assembler failed: {exc}")
 
-        # --- compile PDF (always) ---
+        # ── STEP 7: Compile PDF ────────────────────────────────────────
         pdf_path = ""
-        if manuscript_tex:
-            ms_dir = execution_dir / "13_ieee_manuscript"
-            ok, msg = compile_pdf(ms_dir)
-            logger.info("PDF: %s", msg)
-            if ok:
-                pdf_path = str(ms_dir / "main.pdf")
+        with log.step("Compile PDF (pdflatex → bibtex → pdflatex × 2)"):
+            if manuscript_tex:
+                ms_dir = execution_dir / "13_ieee_manuscript"
+                log.arrow("Pass 1: pdflatex …")
+                ok_compile, msg = compile_pdf(ms_dir)
+                if ok_compile:
+                    pdf_path = str(ms_dir / "main.pdf")
+                    from pathlib import Path as _P
+                    kb = round(_P(pdf_path).stat().st_size / 1024, 1)
+                    log.ok(f"main.pdf compiled ({kb} KB)")
+                    log.ok(f"→ {pdf_path}")
+                else:
+                    log.fail(msg)
+                    errors.append(msg)
             else:
-                errors.append(msg)
+                log.warn("No manuscript to compile.")
 
-        return EditorRunResult(
+        result = EditorRunResult(
             plan=plan,
             sections=sections,
             figures=figures,
@@ -168,6 +223,8 @@ class EditorPipeline:
             pdf_path=pdf_path,
             errors=errors,
         )
+        log.footer(result)
+        return result
 
 
 def compile_pdf(manuscript_dir: Path) -> tuple[bool, str]:
@@ -222,8 +279,15 @@ def run_editor_pipeline(
     *,
     ieee_format: IeeeFormat = "journal",
     env_path: Path | None = None,
+    verbose_log: bool = True,
 ) -> EditorRunResult:
-    """Synchronous entry point. Always compiles to PDF at the end."""
+    """
+    Synchronous entry point.
+
+    Always compiles to PDF at the end.
+    Run log written to ``execution_dir/editor_run.log`` and mirrored to stderr.
+    Set ``verbose_log=False`` to suppress stderr output (log still written to disk).
+    """
     settings = load_editor_settings(env_path)
     pipeline = EditorPipeline(settings)
-    return asyncio.run(pipeline.run(execution_dir, ieee_format=ieee_format))
+    return asyncio.run(pipeline.run(execution_dir, ieee_format=ieee_format, verbose_log=verbose_log))

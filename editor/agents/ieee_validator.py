@@ -25,9 +25,10 @@ AGENT_ID = "ieee_validator"
 _REQUIRED_IEEE_SECTIONS = {"abstract", "introduction", "conclusion", "references"}
 _NUMERIC_CITE_PATTERN = re.compile(r"\[\d+\]")
 _PIPELINE_WORDS = re.compile(
-    r"\b(orchestrat|search agent|validation run|gemini|execution_\d+|autopaper)\b",
+    r"\b(autopaper|execution_\d+|search agent|validation run)\b",
     re.IGNORECASE,
 )
+_FIG_REF_PATTERN = re.compile(r"\\ref\{fig:", re.IGNORECASE)
 
 
 def _deterministic_checks(draft: SectionDraft, plan: EditorPlan) -> list[str]:
@@ -49,19 +50,28 @@ def _deterministic_checks(draft: SectionDraft, plan: EditorPlan) -> list[str]:
         if wc < 50:
             issues.append(f"Abstract is too short ({wc} words).")
 
-    # Pipeline leakage
+    # Pipeline leakage (strict list — no false positives on domain words)
     match = _PIPELINE_WORDS.search(latex)
     if match:
         issues.append(
-            f"Section contains internal pipeline term '{match.group()}'. Remove before submission."
+            f"Section contains internal tool term '{match.group()}'. Remove before submission."
         )
 
-    # Numeric citation format — warn if any (AuthorYear) style slipped through
+    # Author-year citation style
     if re.search(r"\([\w]+\s+et al\.,?\s+\d{4}\)", latex):
         issues.append(
-            "Author–year citation style detected (e.g. '(Smith et al., 2020)'). "
-            "IEEE requires numeric style [N]."
+            "Author–year citation style detected. IEEE requires \\cite{key} style."
         )
+
+    # Figure cross-reference consistency (deterministic — not delegated to LLM)
+    if draft.figures_referenced:
+        if _FIG_REF_PATTERN.search(latex):
+            pass  # at least one proper \ref{fig:...} found — OK
+        else:
+            issues.append(
+                "Figures declared in figures_referenced but no \\ref{fig:...} found in body. "
+                "Add Fig.~\\ref{fig:id} or remove from figures_referenced."
+            )
 
     return issues
 

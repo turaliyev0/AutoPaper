@@ -88,9 +88,9 @@ def _render_section(draft: SectionDraft, order: int) -> str:
     if sid == "references":
         return ""  # handled by bibliography
 
-    roman = _to_roman(order)
+    clean_heading = _strip_section_numbering(heading)
     return (
-        f"\\section{{{_escape_latex(heading)}}}\n"
+        f"\\section{{{_escape_latex(clean_heading)}}}\n"
         f"\\label{{sec:{draft.section_id}}}\n\n"
         f"{body}\n"
     )
@@ -105,6 +105,15 @@ def _to_roman(n: int) -> str:
             result += s
             n -= v
     return result
+
+
+def _strip_section_numbering(heading: str) -> str:
+    """
+    Remove any leading section numbering the orchestrator may have added.
+    IEEEtran auto-numbers sections, so 'I. Introduction' must become 'Introduction'.
+    Handles: 'I. Foo', 'II. Foo', 'III. Foo', '1. Foo', '1.1 Foo', 'A. Foo'.
+    """
+    return re.sub(r"^(?:[IVXLC]+\.|[A-Z]\.|[\d]+(?:\.\d+)*\.?)\s+", "", heading).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +189,8 @@ def assemble_manuscript(
     figure_map = {f.figure_id: f for f in figures}
     figure_spec_map = {s.figure_id: s for s in plan.figures}
 
-    # Render sections
+    # Render sections; each figure environment appears at most once (first referencing section).
+    rendered_figure_ids: set[str] = set()
     body_order = 0
     for spec in plan.ordered_sections:
         draft = draft_map.get(spec.section_id)
@@ -195,25 +205,26 @@ def assemble_manuscript(
         rendered = _render_section(draft, body_order)
         tex_parts.append(rendered)
 
-        # Attach figures mapped to this section
         for fig_spec in sorted(plan.figures, key=lambda f: f.order):
-            # Insert figures referenced in this section
-            if fig_spec.figure_id in (draft.figures_referenced or []):
-                fig_result = figure_map.get(fig_spec.figure_id)
-                if fig_result is not None:
-                    tex_parts.append(
-                        _render_figure(fig_result, fig_spec.caption, fig_spec.order)
-                    )
+            if fig_spec.figure_id in rendered_figure_ids:
+                continue
+            if fig_spec.figure_id not in (draft.figures_referenced or []):
+                continue
+            fig_result = figure_map.get(fig_spec.figure_id)
+            if fig_result is not None:
+                tex_parts.append(
+                    _render_figure(fig_result, fig_spec.caption, fig_spec.order)
+                )
+                rendered_figure_ids.add(fig_spec.figure_id)
 
-    # Any figures not yet referenced
-    referenced_ids: set[str] = set()
-    for d in sections:
-        referenced_ids.update(d.figures_referenced or [])
-    unreferenced = [f for f in plan.figures if f.figure_id not in referenced_ids]
-    for fig_spec in sorted(unreferenced, key=lambda f: f.order):
+    # Figures never referenced in text — append once at end (before bibliography)
+    for fig_spec in sorted(plan.figures, key=lambda f: f.order):
+        if fig_spec.figure_id in rendered_figure_ids:
+            continue
         fig_result = figure_map.get(fig_spec.figure_id)
         if fig_result is not None:
             tex_parts.append(_render_figure(fig_result, fig_spec.caption, fig_spec.order))
+            rendered_figure_ids.add(fig_spec.figure_id)
 
     # Bibliography
     bib_block, bib_content = _build_bibliography(context.citation_pool)
