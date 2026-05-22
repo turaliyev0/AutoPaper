@@ -29,6 +29,46 @@ def section_slug(section_id: str, heading: str) -> str:
     return f"{section_id}_{safe}_{digest}"
 
 
+def load_editor_plan(run_dir: Path) -> EditorPlan | None:
+    path = run_dir / EXEC_EDITOR_PLAN
+    if not path.is_file():
+        return None
+    return EditorPlan.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def load_section_drafts(run_dir: Path) -> list[SectionDraft]:
+    sections_dir = run_dir / EXEC_SECTIONS_DIR
+    manifest_path = sections_dir / MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        return []
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    drafts: list[SectionDraft] = []
+    for entry in manifest.get("sections", []):
+        filename = entry.get("filename")
+        if not filename:
+            continue
+        path = sections_dir / filename
+        if path.is_file():
+            drafts.append(SectionDraft.model_validate_json(path.read_text(encoding="utf-8")))
+    return drafts
+
+
+def figure_result_if_complete(figures_dir: Path, figure_id: str) -> FigureResult | None:
+    """Return a success result when PNG already exists from a prior partial run."""
+    png = figures_dir / f"{figure_id}.png"
+    py = figures_dir / f"{figure_id}.py"
+    if not png.is_file() or png.stat().st_size < 1024:
+        return None
+    return FigureResult(
+        figure_id=figure_id,
+        output_path=str(png.resolve()),
+        code_path=str(py.resolve()) if py.is_file() else "",
+        success=True,
+        retries=0,
+        validation_notes="Resumed from existing PNG on disk.",
+    )
+
+
 def write_editor_plan(run_dir: Path, plan: EditorPlan) -> Path:
     path = run_dir / EXEC_EDITOR_PLAN
     path.write_text(plan.model_dump_json(indent=2, exclude_none=True), encoding="utf-8")
@@ -92,6 +132,54 @@ def write_figures(run_dir: Path, figures: list[FigureResult]) -> Path:
         encoding="utf-8",
     )
     return figures_dir
+
+
+def load_editor_validation(run_dir: Path) -> list[EditorValidationResult]:
+    val_dir = run_dir / EXEC_EDITOR_VALIDATION_DIR
+    manifest_path = val_dir / MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        return []
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    results: list[EditorValidationResult] = []
+    for entry in manifest.get("sections", []):
+        filename = entry.get("filename")
+        if not filename:
+            continue
+        path = val_dir / filename
+        if path.is_file():
+            results.append(
+                EditorValidationResult.model_validate_json(path.read_text(encoding="utf-8"))
+            )
+    return results
+
+
+def append_editor_validation_result(
+    run_dir: Path,
+    result: EditorValidationResult,
+) -> None:
+    """Persist one section verdict immediately (survives partial runs / API reload)."""
+    val_dir = run_dir / EXEC_EDITOR_VALIDATION_DIR
+    val_dir.mkdir(parents=True, exist_ok=True)
+    slug = section_slug(result.section_id, result.section_id)
+    filename = f"{slug}.validation.json"
+    (val_dir / filename).write_text(
+        result.model_dump_json(indent=2, exclude_none=True),
+        encoding="utf-8",
+    )
+    manifest_path = val_dir / MANIFEST_FILENAME
+    manifest: dict[str, Any] = {"count": 0, "sections": []}
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = [e for e in manifest.get("sections", []) if e.get("section_id") != result.section_id]
+    entries.append({
+        "slug": slug,
+        "filename": filename,
+        "section_id": result.section_id,
+        "verdict": result.verdict,
+    })
+    manifest["sections"] = entries
+    manifest["count"] = len(entries)
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def write_editor_validation(

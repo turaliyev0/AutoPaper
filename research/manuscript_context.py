@@ -34,7 +34,7 @@ class MismatchFlag(BaseModel):
 
 
 class ManuscriptContext(BaseModel):
-    """Passed to orchestrator search agents and synthesizer (research pipeline only)."""
+    """Passed to orchestrator search agents and the research index builder (research pipeline only)."""
 
     summary: str = ""
     target_journal: str = ""

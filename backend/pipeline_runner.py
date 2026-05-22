@@ -23,7 +23,7 @@ from pathlib import Path
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from backend.run_store import PipelineRun, RunStatus
+from backend.run_store import PipelineRun, RunStatus, store
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]   # AutoPaper/
 
@@ -113,6 +113,7 @@ async def _execute(run: PipelineRun, input_path: Path, *, ieee_format: str) -> N
             run.push({"type": "log", "line": f"  {tb_line}"})
 
     run.push({"type": "done", "status": run.status.value})
+    store.persist(run)
 
 
 # ── Subprocess (Windows-safe) ─────────────────────────────────────────────────
@@ -137,6 +138,13 @@ async def _run_subprocess(cmd: list[str], env: dict[str, str], cwd: str, run: Pi
     return await _run_subprocess_asyncio(cmd, env, cwd, run)
 
 
+def _detached_subprocess_kwargs() -> dict:
+    """Keep pipeline alive when the API dev server reloads (Windows Ctrl+C)."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}  # type: ignore[attr-defined]
+    return {"start_new_session": True}
+
+
 async def _run_subprocess_asyncio(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -145,6 +153,7 @@ async def _run_subprocess_asyncio(cmd: list[str], env: dict[str, str], cwd: str,
             stderr=asyncio.subprocess.STDOUT,
             cwd=cwd,
             env=env,
+            **_detached_subprocess_kwargs(),
         )
     except NotImplementedError:
         return await _run_subprocess_threaded(cmd, env, cwd, run)
@@ -169,6 +178,7 @@ async def _run_subprocess_threaded(cmd: list[str], env: dict[str, str], cwd: str
                 stderr=subprocess.STDOUT,
                 cwd=cwd,
                 env=env,
+                **_detached_subprocess_kwargs(),
             )
             if proc.stdout:
                 for raw in proc.stdout:
@@ -216,6 +226,8 @@ _EXEC_RE     = re.compile(r"execution_dir\s*:\s*(.+)")
 
 
 def _parse_progress(run: PipelineRun, line: str) -> None:
+    prev_exec = run.execution_dir
+
     m = _RUN_DIR_RE.search(line)
     if m:
         run.execution_dir = m.group(1).strip()
@@ -223,6 +235,9 @@ def _parse_progress(run: PipelineRun, line: str) -> None:
     m = _EXEC_RE.search(line)
     if m and not run.execution_dir:
         run.execution_dir = m.group(1).strip()
+
+    if run.execution_dir and run.execution_dir != prev_exec:
+        store.persist(run)
 
     m = _PDF_RE.search(line)
     if m:

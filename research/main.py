@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import load_settings
 from .pipeline import ResearchPipeline
+from .research_storage import RUN_INDEX_MD
 from .utils import setup_logging
 
 
@@ -16,7 +17,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Multi-Agent Research Pipeline: GPT-4o orchestrator; "
-            "parallel gemini_search + openai_search; Gemini report synthesizer."
+            "parallel gemini_search + openai_search; Gemini validator; "
+            "Gemini research index catalog."
         )
     )
     parser.add_argument(
@@ -87,8 +89,15 @@ async def _async_main(args: argparse.Namespace) -> int:
         print(
             f"Search: {len(result.bundle.successful_results)}/{len(result.bundle.results)} tasks OK"
         )
+    if result.validated:
+        coverages = [v.coverage for v in result.validated.results]
+        print(
+            f"Validation: pass={coverages.count('pass')} "
+            f"warn={coverages.count('warn')} fail={coverages.count('fail')} "
+            f"(coverage sufficient={coverages.count('sufficient')})"
+        )
     if result.report:
-        print(f"Report: {result.output_dir}/03_final_report.md")
+        print(f"Research index: {result.output_dir}/{RUN_INDEX_MD}")
     if result.errors:
         print("Warnings/errors:", file=sys.stderr)
         for err in result.errors:

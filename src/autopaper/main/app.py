@@ -17,7 +17,13 @@ from paper_input.research_continue import ResearchContinuation
 _builtin_input = import_module("builtins").input
 
 
-def _run_editor(run_path: Path, ieee_format: str, *, verbose_log: bool = True) -> None:
+def _run_editor(
+    run_path: Path,
+    ieee_format: str,
+    *,
+    verbose_log: bool = True,
+    resume: bool = False,
+) -> None:
     """Run the editor pipeline on a completed execution directory."""
     from editor.pipeline import run_editor_pipeline
     from editor.schemas import IeeeFormat
@@ -25,7 +31,11 @@ def _run_editor(run_path: Path, ieee_format: str, *, verbose_log: bool = True) -
     fmt: IeeeFormat = "conference" if ieee_format == "conference" else "journal"
     if not verbose_log:
         print(f"\nEditor pipeline starting (format: {fmt}) …")
-    result = run_editor_pipeline(run_path, ieee_format=fmt, verbose_log=verbose_log)
+    if resume:
+        print(f"Editor resume: reusing artifacts in {run_path}", flush=True)
+    result = run_editor_pipeline(
+        run_path, ieee_format=fmt, verbose_log=verbose_log, resume=resume
+    )
 
     ok_sections = len(result.successful_sections)
     total_sections = len(result.sections)
@@ -116,6 +126,22 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Print live step-by-step editor pipeline log to stderr (always written to editor_run.log).",
     )
+    parser.add_argument(
+        "--execution-dir",
+        default=None,
+        metavar="PATH",
+        help="Existing output/execution_NNN directory (required with --editor-only).",
+    )
+    parser.add_argument(
+        "--editor-only",
+        action="store_true",
+        help="Run only the editor on --execution-dir (skip ingest and research).",
+    )
+    parser.add_argument(
+        "--editor-resume",
+        action="store_true",
+        help="With --editor-only: reuse 09_editor_plan.json and 10_sections/; continue figures onward.",
+    )
     mismatch = parser.add_mutually_exclusive_group()
     mismatch.add_argument(
         "--force-continue-on-mismatch",
@@ -128,6 +154,26 @@ def main(argv: list[str] | None = None) -> None:
         help="Stop when joiner reports figure–text mismatches (no prompt).",
     )
     args = parser.parse_args(argv)
+
+    if args.editor_only:
+        if not args.execution_dir:
+            print("--execution-dir PATH is required with --editor-only.", file=sys.stderr)
+            raise SystemExit(2)
+        run_path = Path(args.execution_dir).expanduser().resolve()
+        if not run_path.is_dir():
+            print(f"Not a directory: {run_path}", file=sys.stderr)
+            raise SystemExit(2)
+        try:
+            _run_editor(
+                run_path,
+                args.ieee_format,
+                verbose_log=getattr(args, "log_editor", True),
+                resume=args.editor_resume,
+            )
+        except Exception as exc:
+            print(f"Editor pipeline failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        return
 
     if getattr(args, "log_gemini", False):
         import os

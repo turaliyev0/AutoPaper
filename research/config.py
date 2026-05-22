@@ -43,11 +43,11 @@ class Settings(BaseSettings):
         default="", validation_alias="RESEARCH_OPENAI_SEARCH_API_KEY"
     )
     research_openai_search_model: str = Field(
-        default=_DEFAULT_OPENAI,
+        default=_DEFAULT_GEMINI,
         validation_alias="RESEARCH_OPENAI_SEARCH_MODEL",
     )
 
-    # --- research / Report synthesizer (Gemini) ---
+    # --- research / Validator + index (Gemini; legacy env names report_synthesizer) ---
     research_report_synthesizer_api_key: str = Field(
         default="", validation_alias="RESEARCH_REPORT_SYNTHESIZER_API_KEY"
     )
@@ -56,10 +56,22 @@ class Settings(BaseSettings):
         validation_alias="RESEARCH_REPORT_SYNTHESIZER_MODEL",
     )
 
-    research_llm_max_retries: int = Field(default=3, validation_alias="RESEARCH_LLM_MAX_RETRIES")
+    research_llm_max_retries: int = Field(default=6, validation_alias="RESEARCH_LLM_MAX_RETRIES")
     research_output_dir: Path = Field(
         default=Path("output/research_runs"),
         validation_alias="RESEARCH_OUTPUT_DIR",
+    )
+
+    # Maximum number of follow-up search rounds after the initial validate step.
+    # 0 disables follow-ups entirely. 1 means: initial round + (at most) one
+    # gap-filling round driven by the orchestrator's read of validation results.
+    research_followup_rounds: int = Field(
+        default=1, validation_alias="RESEARCH_FOLLOWUP_ROUNDS"
+    )
+    # Hard cap on the total number of new tasks the orchestrator may request
+    # per follow-up round (across both gemini_search and openai_search).
+    research_followup_max_tasks: int = Field(
+        default=4, validation_alias="RESEARCH_FOLLOWUP_MAX_TASKS"
     )
 
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
@@ -122,11 +134,22 @@ class Settings(BaseSettings):
 
     @property
     def openai_search_api_key(self) -> str:
-        return (self.research_openai_search_api_key or self.openai_api_key).strip()
+        # Critique agent id is openai_search; runtime uses Gemini (see openai_search_model).
+        return (
+            self.research_openai_search_api_key
+            or self.gemini_search_api_key
+        ).strip()
 
     @property
     def openai_search_model(self) -> str:
-        return (self.research_openai_search_model or _DEFAULT_OPENAI).strip()
+        raw = (
+            self.research_openai_search_model
+            or self.gemini_search_model
+        ).strip()
+        lower = raw.lower()
+        if lower.startswith("gpt") or lower.startswith("o1") or lower.startswith("o3"):
+            return self.gemini_search_model
+        return raw
 
     @property
     def report_synthesizer_api_key(self) -> str:
@@ -159,7 +182,7 @@ class Settings(BaseSettings):
             or self.research_analyst_model
             or self.default_gemini_model
         ).strip()
-        # Synthesizer uses Gemini API — Claude/Exa model ids from legacy .env must not pass through.
+        # Validator/index use Gemini API — Claude/Exa model ids from legacy .env must not pass through.
         lower = raw.lower()
         if lower.startswith("claude") or "anthropic" in lower:
             return self.default_gemini_model
@@ -175,8 +198,6 @@ class Settings(BaseSettings):
             return
         if not self.gemini_search_api_key:
             missing.append("GOOGLE_API_KEY")
-        if not self.openai_search_api_key:
-            missing.append("OPENAI_API_KEY")
         if not self.report_synthesizer_api_key:
             missing.append("GOOGLE_API_KEY")
         if missing:

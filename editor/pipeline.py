@@ -22,6 +22,13 @@ from .plan_filters import filter_editor_plan_figures
 from .run_log import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
 from .storage import (
+    EXEC_EDITOR_PLAN,
+    EXEC_FIGURES_DIR,
+    EXEC_SECTIONS_DIR,
+    figure_result_if_complete,
+    load_editor_plan,
+    load_editor_validation,
+    load_section_drafts,
     write_editor_plan,
     write_editor_validation,
     write_figures,
@@ -58,15 +65,15 @@ class EditorPipeline:
             api_key=settings.gemini_key,
             model=settings.editor_validator_model,
         )
-        writer_client = OpenAIClient(
+        writer_client = GeminiClient(
             settings,  # type: ignore[arg-type]
-            api_key=settings.openai_key,
-            model=settings.editor_section_writer_model,
+            api_key=settings.gemini_key,
+            model=settings.section_writer_model,
         )
-        figure_client = OpenAIClient(
+        figure_client = GeminiClient(
             settings,  # type: ignore[arg-type]
-            api_key=settings.openai_key,
-            model=settings.editor_figure_model,
+            api_key=settings.gemini_key,
+            model=settings.figure_model,
         )
 
         self._orchestrator = EditorOrchestratorAgent(openai_client, settings=settings)
@@ -80,6 +87,7 @@ class EditorPipeline:
         *,
         ieee_format: IeeeFormat = "journal",
         verbose_log: bool = True,
+        resume: bool = False,
     ) -> EditorRunResult:
         errors: list[str] = []
         log = RunLog(execution_dir, verbose=verbose_log)
@@ -98,55 +106,82 @@ class EditorPipeline:
 
         # ── STEP 2: Editor Orchestrator ────────────────────────────────
         plan: EditorPlan | None = None
-        with log.step(
-            "Editor Orchestrator",
-            agent=f"OpenAI {self._settings.editor_orchestrator_model}",
-        ):
-            print("[STEP] Planning manuscript structure", flush=True)
-            log.arrow("Calling OpenAI Responses API (tool session)…")
-            try:
-                plan = await self._orchestrator.create_plan(context)
+        if resume and (execution_dir / EXEC_EDITOR_PLAN).is_file():
+            plan = load_editor_plan(execution_dir)
+            if plan is not None:
                 plan = filter_editor_plan_figures(plan, context)
-                log.log_plan(plan)
-                write_editor_plan(execution_dir, plan)
-                log.ok("09_editor_plan.json written")
-            except Exception as exc:
-                log.fail(f"Orchestrator failed: {exc}")
-                errors.append(f"Orchestrator failed: {exc}")
-                log.footer(EditorRunResult(errors=errors))
-                return EditorRunResult(errors=errors)
+                with log.step("Editor Orchestrator (resumed)"):
+                    log.ok(f"Loaded existing {EXEC_EDITOR_PLAN} ({len(plan.sections)} sections, {len(plan.figures)} figures)")
+
+        if plan is None:
+            with log.step(
+                "Editor Orchestrator",
+                agent=f"OpenAI {self._settings.editor_orchestrator_model}",
+            ):
+                print("[STEP] Planning manuscript structure", flush=True)
+                log.arrow("Calling OpenAI Responses API (tool session)…")
+                try:
+                    plan = await self._orchestrator.create_plan(context)
+                    plan = filter_editor_plan_figures(plan, context)
+                    log.log_plan(plan)
+                    write_editor_plan(execution_dir, plan)
+                    log.ok("09_editor_plan.json written")
+                except Exception as exc:
+                    log.fail(f"Orchestrator failed: {exc}")
+                    errors.append(f"Orchestrator failed: {exc}")
+                    log.footer(EditorRunResult(errors=errors))
+                    return EditorRunResult(errors=errors)
 
         # ── STEP 3: Section Writing ────────────────────────────────────
         sections: list = []
-        with log.step(
-            f"Section Writing ({len(plan.sections)} sections, parallel)",
-            agent=f"OpenAI {self._settings.editor_section_writer_model}",
-        ):
-            print(f"[STEP] Writing {len(plan.sections)} section(s)", flush=True)
-            try:
-                sections = await self._coordinator.write_all(plan, context)
-                log.log_sections(sections)
-                write_sections(execution_dir, sections)
-                ok_count = sum(1 for s in sections if s.success)
-                log.ok(f"{ok_count}/{len(sections)} sections written → 10_sections/")
-                if ok_count < len(sections):
-                    failed = ", ".join(s.section_id for s in sections if not s.success)
-                    errors.append(f"{len(sections) - ok_count} section(s) failed: {failed}")
-            except Exception as exc:
-                log.fail(f"Section coordinator failed: {exc}")
-                errors.append(f"Section writing failed: {exc}")
+        resumed_sections = resume and (execution_dir / EXEC_SECTIONS_DIR / "manifest.json").is_file()
+        if resumed_sections:
+            sections = load_section_drafts(execution_dir)
+            ok_count = sum(1 for s in sections if s.success)
+            with log.step(f"Section Writing (resumed, {len(sections)} sections)"):
+                log.ok(f"Loaded {ok_count}/{len(sections)} sections from {EXEC_SECTIONS_DIR}/")
+                if ok_count < len(plan.sections):
+                    errors.append(
+                        f"Resume: only {ok_count}/{len(plan.sections)} section drafts on disk.",
+                    )
+        else:
+            with log.step(
+                f"Section Writing ({len(plan.sections)} sections, parallel)",
+                agent=f"Gemini {self._settings.section_writer_model}",
+            ):
+                print(f"[STEP] Writing {len(plan.sections)} section(s)", flush=True)
+                try:
+                    sections = await self._coordinator.write_all(plan, context)
+                    log.log_sections(sections)
+                    write_sections(execution_dir, sections)
+                    ok_count = sum(1 for s in sections if s.success)
+                    log.ok(f"{ok_count}/{len(sections)} sections written → 10_sections/")
+                    if ok_count < len(sections):
+                        failed = ", ".join(s.section_id for s in sections if not s.success)
+                        errors.append(f"{len(sections) - ok_count} section(s) failed: {failed}")
+                except Exception as exc:
+                    log.fail(f"Section coordinator failed: {exc}")
+                    errors.append(f"Section writing failed: {exc}")
 
         # ── STEP 4: Figure Generation ──────────────────────────────────
         figures: list[FigureResult] = []
         fig_spec_map = {s.figure_id: s for s in plan.figures}
         with log.step(
             f"Figure Generation ({len(plan.figures)} figures)",
-            agent=f"OpenAI {self._settings.editor_figure_model} + matplotlib subprocess",
+            agent=f"Gemini {self._settings.figure_model} + matplotlib subprocess",
         ):
             print(f"[STEP] Generating {len(plan.figures)} figure(s)", flush=True)
             figures_dir = execution_dir / "11_figures"
             figures_dir.mkdir(parents=True, exist_ok=True)
-            for fig_spec in plan.figures:
+            for idx, fig_spec in enumerate(plan.figures):
+                if idx > 0:
+                    await asyncio.sleep(2.0)
+                existing = figure_result_if_complete(figures_dir, fig_spec.figure_id)
+                if existing is not None:
+                    log.arrow(f"Skipping {fig_spec.figure_id} (PNG already on disk)")
+                    figures.append(existing)
+                    log.ok(f"{fig_spec.figure_id}: resumed from disk")
+                    continue
                 log.arrow(f"Generating {fig_spec.figure_id} …")
                 result = await self._figure_agent.generate(fig_spec, figures_dir, context)
                 figures.append(result)
@@ -170,9 +205,32 @@ class EditorPipeline:
             print("[STEP] Validating IEEE format compliance", flush=True)
             if sections:
                 try:
-                    validation = await self._validator.validate_all(sections, plan, context)
+                    loaded_val = load_editor_validation(execution_dir) if resume else []
+                    done_ids = {v.section_id for v in loaded_val}
+                    if resume and len(done_ids) >= len(sections):
+                        validation = loaded_val
+                        log.ok(f"Resumed {len(validation)} validation results from 12_editor_validation/")
+                    else:
+                        pending = (
+                            [s for s in sections if s.section_id not in done_ids]
+                            if resume
+                            else sections
+                        )
+                        if resume and loaded_val:
+                            log.arrow(
+                                f"Validating {len(pending)} remaining section(s) "
+                                f"({len(loaded_val)} already on disk)",
+                            )
+                        new_val = await self._validator.validate_all(
+                            pending,
+                            plan,
+                            context,
+                            run_dir=execution_dir,
+                            persist_each=True,
+                        )
+                        validation = loaded_val + new_val
+                        write_editor_validation(execution_dir, validation)
                     log.log_validation(validation)
-                    write_editor_validation(execution_dir, validation)
                     v_pass = sum(1 for v in validation if v.verdict == "pass")
                     v_warn = sum(1 for v in validation if v.verdict == "warn")
                     v_fail = sum(1 for v in validation if v.verdict == "fail")
@@ -286,6 +344,7 @@ def run_editor_pipeline(
     ieee_format: IeeeFormat = "journal",
     env_path: Path | None = None,
     verbose_log: bool = True,
+    resume: bool = False,
 ) -> EditorRunResult:
     """
     Synchronous entry point.
@@ -298,7 +357,12 @@ def run_editor_pipeline(
     pipeline = EditorPipeline(settings)
     try:
         return asyncio.run(
-            pipeline.run(execution_dir, ieee_format=ieee_format, verbose_log=verbose_log)
+            pipeline.run(
+                execution_dir,
+                ieee_format=ieee_format,
+                verbose_log=verbose_log,
+                resume=resume,
+            )
         )
     except KeyboardInterrupt:
         pdf = execution_dir / "13_ieee_manuscript" / "main.pdf"

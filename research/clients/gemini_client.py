@@ -122,7 +122,7 @@ class GeminiClient:
         *,
         system: str,
         user: str,
-        trace_label: str = "report_synthesizer",
+        trace_label: str = "research_index",
     ) -> str:
         return await self.generate_text(system=system, user=user, trace_label=trace_label)
 
@@ -188,4 +188,22 @@ def index_client(settings: Settings) -> GeminiClient:
         settings,
         api_key=settings.research_index_api_key,
         model=settings.research_index_model,
+    )
+
+
+def openai_search_client(settings: Settings) -> GeminiClient:
+    """Critique/methods search agent (agent_id openai_search) — Gemini at runtime."""
+    return GeminiClient(
+        settings,
+        api_key=settings.openai_search_api_key,
+        model=settings.openai_search_model,
+    )
+
+
+def orchestrator_followup_client(settings: Settings) -> GeminiClient:
+    """Post-validation follow-up refinement (second orchestrator call)."""
+    return GeminiClient(
+        settings,
+        api_key=settings.gemini_search_api_key,
+        model=settings.gemini_search_model,
     )

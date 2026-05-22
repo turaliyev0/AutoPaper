@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Any
 
-from research.clients.openai_client import OpenAIClient
+from research.clients.gemini_client import GeminiClient
 from research.utils import extract_json_object
 
 from ..context import EditorContext
@@ -104,7 +104,7 @@ def _normalize_backslashes(latex: str) -> str:
 class SectionWriterAgent:
     """Writes one IEEE section as a LaTeX body fragment."""
 
-    def __init__(self, client: OpenAIClient) -> None:
+    def __init__(self, client: GeminiClient) -> None:
         self._client = client
         self._system = load_section_writer_instruction()
 

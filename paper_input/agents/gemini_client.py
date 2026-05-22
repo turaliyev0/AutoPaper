@@ -198,4 +198,43 @@ def generate_json(
         )
     from research.utils import extract_json_object
 
-    return extract_json_object(text)
+    try:
+        return extract_json_object(text)
+    except ValueError as exc:
+        if "invalid JSON" not in str(exc):
+            raise
+        fix_hint = (
+            "Your previous reply was not valid JSON "
+            f"({exc}). Return ONLY one valid JSON object. "
+            "Escape double quotes inside strings as \\\", use \\n for line breaks, "
+            "no trailing commas, no markdown fences."
+        )
+        retry_parts = list(content_parts) + [fix_hint]
+        try:
+            from autopaper.gemini.trace import log_request
+
+            log_request(
+                label=f"paper_input.{agent.value}:json_retry",
+                model=resolved,
+                mode="json",
+                user_preview=fix_hint,
+            )
+        except ImportError:
+            pass
+        retry_response = client.models.generate_content(
+            model=resolved,
+            contents=retry_parts,
+            config=config,
+        )
+        retry_text = _response_text(retry_response)
+        if not retry_text.strip():
+            raise RuntimeError(
+                "Empty response from Gemini on JSON retry."
+            ) from exc
+        try:
+            from autopaper.gemini.trace import log_response
+
+            log_response(retry_response, label=f"paper_input.{agent.value}:json_retry")
+        except ImportError:
+            pass
+        return extract_json_object(retry_text)

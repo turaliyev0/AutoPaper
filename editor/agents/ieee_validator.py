@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 from research.clients.gemini_client import GeminiClient
@@ -157,24 +158,41 @@ class IeeeValidatorAgent:
         drafts: list[SectionDraft],
         plan: EditorPlan,
         context: EditorContext,
+        *,
+        run_dir: Path | None = None,
+        persist_each: bool = False,
     ) -> list[EditorValidationResult]:
-        coros = [
-            self.validate_section(draft, plan, context)
-            for draft in drafts
-        ]
-        logger.info("IeeeValidatorAgent: validating %d sections", len(coros))
-        results = await asyncio.gather(*coros, return_exceptions=True)
+        """Validate sections sequentially (avoids Gemini burst + CancelledError cascades)."""
+        from ..storage import append_editor_validation_result
 
+        logger.info("IeeeValidatorAgent: validating %d sections (sequential)", len(drafts))
         out: list[EditorValidationResult] = []
-        for draft, item in zip(drafts, results):
-            if isinstance(item, BaseException):
-                logger.exception("Validator crashed for %s: %s", draft.section_id, item)
-                out.append(EditorValidationResult(
+        for idx, draft in enumerate(drafts):
+            if idx > 0:
+                await asyncio.sleep(1.0)
+            try:
+                result = await self.validate_section(draft, plan, context)
+            except asyncio.CancelledError:
+                logger.warning("IEEE validation cancelled for %s", draft.section_id)
+                result = EditorValidationResult(
                     section_id=draft.section_id,
                     verdict="fail",
-                    issues=[str(item)],
+                    issues=["Validation interrupted (API reload or stop). Re-run with --editor-resume."],
+                    notes="CancelledError during Gemini call.",
+                )
+                out.append(result)
+                if persist_each and run_dir is not None:
+                    append_editor_validation_result(run_dir, result)
+                raise
+            except Exception as exc:
+                logger.exception("Validator crashed for %s: %s", draft.section_id, exc)
+                result = EditorValidationResult(
+                    section_id=draft.section_id,
+                    verdict="fail",
+                    issues=[str(exc)],
                     notes="Validator crashed.",
-                ))
-            else:
-                out.append(item)
+                )
+            out.append(result)
+            if persist_each and run_dir is not None:
+                append_editor_validation_result(run_dir, result)
         return out

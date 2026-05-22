@@ -129,6 +129,97 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Follow-up phase (after first search+validate round)
+# ---------------------------------------------------------------------------
+
+ORCHESTRATOR_FOLLOWUP_TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "request_followup_gemini_search",
+            "description": (
+                "Request additional gemini_search subtasks that target specific gaps "
+                "reported by the research_validator. Each task must address a gap or issue "
+                "from the validation report — do not repeat existing topics. "
+                "Keep follow-up focused (typically 1–4 tasks total across both agents)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "description": (
+                            "New gemini_search subtask descriptions. Each must explicitly "
+                            "reference the gap it is filling (quote the validator's gap text "
+                            "when possible)."
+                        ),
+                    },
+                },
+                "required": ["tasks"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "request_followup_openai_search",
+            "description": (
+                "Request additional openai_search subtasks that target specific gaps "
+                "reported by the research_validator. Use for design critique depth, "
+                "methods/limitations comparison, or quantitative benchmarks that the "
+                "first round did not cover sufficiently. Do not repeat existing topics."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "description": (
+                            "New openai_search subtask descriptions. Each must explicitly "
+                            "reference the gap it is filling."
+                        ),
+                    },
+                },
+                "required": ["tasks"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "finalize_followup",
+            "description": (
+                "End the follow-up phase. Call this when validator coverage is already "
+                "sufficient overall, when remaining gaps are out of scope, or after "
+                "requesting all needed follow-up tasks. Always call this exactly once."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reasoning": {
+                        "type": "string",
+                        "description": (
+                            "Short explanation of why the follow-up phase is complete "
+                            "(e.g. 'all tasks sufficient', 'requested 2 follow-ups for "
+                            "design critique gaps', 'remaining gaps out of scope')."
+                        ),
+                    },
+                },
+                "required": ["reasoning"],
+                "additionalProperties": False,
+            },
+        },
+    },
+]
+
+
 class OrchestratorPlanBuilder:
     """Mutable plan state updated by orchestrator tool calls."""
 
@@ -235,4 +326,85 @@ class OrchestratorPlanBuilder:
                 ],
             ),
         )
+
+
+class OrchestratorFollowupBuilder:
+    """Capture follow-up task requests from the orchestrator after validation."""
+
+    def __init__(self, *, max_total_tasks: int = 4) -> None:
+        self._max_total_tasks = max_total_tasks
+        self.gemini_tasks: list[str] = []
+        self.openai_tasks: list[str] = []
+        self.reasoning: str = ""
+        self.finalized: bool = False
+
+    def tool_handlers(self) -> dict[str, Callable[..., dict[str, str]]]:
+        return {
+            "request_followup_gemini_search": self.request_followup_gemini_search,
+            "request_followup_openai_search": self.request_followup_openai_search,
+            "finalize_followup": self.finalize_followup,
+        }
+
+    def _remaining_budget(self) -> int:
+        return self._max_total_tasks - len(self.gemini_tasks) - len(self.openai_tasks)
+
+    def request_followup_gemini_search(self, *, tasks: list[str]) -> dict[str, str]:
+        cleaned = [t.strip() for t in tasks if t.strip()]
+        if not cleaned:
+            return {"status": "error", "message": "tasks must be a non-empty list."}
+        budget = self._remaining_budget()
+        if budget <= 0:
+            return {
+                "status": "error",
+                "message": (
+                    f"Follow-up task budget of {self._max_total_tasks} already reached; "
+                    "call finalize_followup."
+                ),
+            }
+        accepted = cleaned[:budget]
+        self.gemini_tasks.extend(accepted)
+        dropped = len(cleaned) - len(accepted)
+        msg = f"Accepted {len(accepted)} gemini_search follow-up task(s)."
+        if dropped:
+            msg += f" Dropped {dropped} task(s) over budget."
+        return {"status": "ok", "message": msg}
+
+    def request_followup_openai_search(self, *, tasks: list[str]) -> dict[str, str]:
+        cleaned = [t.strip() for t in tasks if t.strip()]
+        if not cleaned:
+            return {"status": "error", "message": "tasks must be a non-empty list."}
+        budget = self._remaining_budget()
+        if budget <= 0:
+            return {
+                "status": "error",
+                "message": (
+                    f"Follow-up task budget of {self._max_total_tasks} already reached; "
+                    "call finalize_followup."
+                ),
+            }
+        accepted = cleaned[:budget]
+        self.openai_tasks.extend(accepted)
+        dropped = len(cleaned) - len(accepted)
+        msg = f"Accepted {len(accepted)} openai_search follow-up task(s)."
+        if dropped:
+            msg += f" Dropped {dropped} task(s) over budget."
+        return {"status": "ok", "message": msg}
+
+    def finalize_followup(self, *, reasoning: str) -> dict[str, str]:
+        text = (reasoning or "").strip()
+        if not text:
+            return {"status": "error", "message": "reasoning must be non-empty."}
+        self.reasoning = text
+        self.finalized = True
+        total = len(self.gemini_tasks) + len(self.openai_tasks)
+        return {
+            "status": "ok",
+            "message": f"Follow-up phase finalized. {total} new task(s) requested.",
+        }
+
+    def is_complete(self) -> bool:
+        return self.finalized
+
+    def has_followups(self) -> bool:
+        return bool(self.gemini_tasks or self.openai_tasks)
 

@@ -121,6 +121,8 @@ class ValidatedTaskResult(BaseModel):
     verdict: Literal["pass", "warn", "fail"]
     source_quality: Literal["clear", "weak", "missing"] = "missing"
     clarity: Literal["clear", "unclear", "contradictory"] = "unclear"
+    coverage: Literal["sufficient", "partial", "insufficient"] = "partial"
+    gaps: list[str] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
     source_notes: str = ""
     validated_at_utc: datetime = Field(

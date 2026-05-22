@@ -33,9 +33,9 @@ class EditorSettings(BaseSettings):
         default=_DEFAULT_OPENAI, validation_alias="EDITOR_ORCHESTRATOR_MODEL"
     )
 
-    # --- section writer (OpenAI) ---
+    # --- section writer (Gemini; only orchestrator uses GPT) ---
     editor_section_writer_model: str = Field(
-        default=_DEFAULT_OPENAI, validation_alias="EDITOR_SECTION_WRITER_MODEL"
+        default=_DEFAULT_GEMINI, validation_alias="EDITOR_SECTION_WRITER_MODEL"
     )
 
     # --- IEEE validator (Gemini) ---
@@ -52,9 +52,9 @@ class EditorSettings(BaseSettings):
         default="", validation_alias="RESEARCH_REPORT_SYNTHESIZER_MODEL"
     )
 
-    # --- figure generator (OpenAI) ---
+    # --- figure generator (Gemini) ---
     editor_figure_model: str = Field(
-        default=_DEFAULT_OPENAI, validation_alias="EDITOR_FIGURE_MODEL"
+        default=_DEFAULT_GEMINI, validation_alias="EDITOR_FIGURE_MODEL"
     )
 
     # --- default IEEE format ---
@@ -63,12 +63,12 @@ class EditorSettings(BaseSettings):
     )
 
     editor_llm_max_retries: int = Field(
-        default=3, validation_alias="EDITOR_LLM_MAX_RETRIES"
+        default=6, validation_alias="EDITOR_LLM_MAX_RETRIES"
     )
 
     # max subprocess seconds for figure code execution
     editor_figure_exec_timeout: int = Field(
-        default=60, validation_alias="EDITOR_FIGURE_EXEC_TIMEOUT"
+        default=120, validation_alias="EDITOR_FIGURE_EXEC_TIMEOUT"
     )
     editor_figure_max_retries: int = Field(
         default=3, validation_alias="EDITOR_FIGURE_MAX_RETRIES"
@@ -102,6 +102,27 @@ class EditorSettings(BaseSettings):
             or self.research_gemini_search_model_fallback
             or self.research_report_synthesizer_model_fallback
             or _DEFAULT_GEMINI
+        )
+
+    @staticmethod
+    def _coerce_gemini_model(raw: str, *, fallback: str) -> str:
+        lower = raw.strip().lower()
+        if lower.startswith("gpt") or lower.startswith("o1") or lower.startswith("o3"):
+            return fallback
+        return raw.strip() or fallback
+
+    @property
+    def section_writer_model(self) -> str:
+        return self._coerce_gemini_model(
+            self.editor_section_writer_model,
+            fallback=self.default_gemini_model,
+        )
+
+    @property
+    def figure_model(self) -> str:
+        return self._coerce_gemini_model(
+            self.editor_figure_model,
+            fallback=self.default_gemini_model,
         )
 
     def validate_keys(self) -> None:

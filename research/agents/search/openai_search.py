@@ -1,10 +1,10 @@
-"""OpenAI search agent (GPT-4o) — structured research JSON per subtask."""
+"""Critique/methods search agent (agent_id openai_search) — Gemini JSON per subtask."""
 
 from __future__ import annotations
 
 import logging
 
-from ...clients.openai_client import OpenAIClient
+from ...clients.gemini_client import openai_search_client
 from ...config import Settings
 from ...prompts.loader import load_openai_search_instruction
 from ...manuscript_context import ManuscriptContext
@@ -18,11 +18,7 @@ AGENT_ID = "openai_search"
 
 class OpenAISearchAgent:
     def __init__(self, settings: Settings) -> None:
-        self._client = OpenAIClient(
-            settings,
-            api_key=settings.openai_search_api_key,
-            model=settings.openai_search_model,
-        )
+        self._client = openai_search_client(settings)
         self._system = load_openai_search_instruction()
 
     async def run_task(

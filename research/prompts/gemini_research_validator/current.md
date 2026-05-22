@@ -18,14 +18,16 @@ Read the `task` field of the input.
 
 **Does the `task` text contain the phrase "grounding in literature is optional"?**
 
-- **YES →** This is a figure-text mismatch review. Apply the rules below and **immediately produce your JSON** — do NOT run Steps 1–4 at all:
+- **YES →** This is a figure-text mismatch review. Apply the rules below and **immediately produce your JSON** — do NOT run Steps 1–6 at all:
   - Evaluate **only** whether the summary clearly explains the mismatch and provides a concrete fix recommendation.
   - Set `source_quality: "missing"` if `sources` is empty (that is expected and acceptable).
   - Set `verdict: "pass"` if the mismatch is clearly explained and a fix is recommended.
   - Set `verdict: "warn"` only if the summary is vague or the fix recommendation is unclear.
   - **Never** set `verdict: "fail"` because sources are absent. Sources are explicitly optional.
+  - Set `coverage: "sufficient"` if the mismatch and fix are clearly described, otherwise `"partial"`.
+  - Set `gaps: []` (no literature gaps apply to figure-text reviews).
   - Set `source_notes` to: "Figure-text mismatch task — no literature sources required per task instructions. DOIs unverified — manual spot-check recommended for any source used in a manuscript."
-  - Produce the JSON and stop. Do not proceed to Steps 1–4.
+  - Produce the JSON and stop. Do not proceed to Steps 1–6.
 
 - **NO →** Continue to Step 1.
 
@@ -53,6 +55,34 @@ If the task involves a design critique (`experimental_design` was in the subtask
 
 For each `sources` entry that has an `excerpt` with a specific quantitative value (e.g., a threshold, a sample size like "n=24", a duration), check whether the `summary` or `key_points` quote a **different** value for the same claim. If a discrepancy exists, add it to `issues` and note which value appears to be wrong.
 
+## Step 6 — Coverage / sufficiency check
+
+This step decides **whether the gathered information is enough** to answer the subtask, independent of source quality.
+
+Read the `task` field carefully and ask:
+
+- Does the `summary` (with `key_points` and `sources`) actually answer every angle the task asks for?
+- Are the **specific quantitative values, materials, populations, or design parameters** that the task description mentions discussed in the output? If the task mentions concrete metrics (thresholds, sample sizes, durations) and the output does not engage with them, that is a gap.
+- Are there at least a few **distinct** sources (not all from the same author/year/journal)? A summary backed by a single source is rarely sufficient for a research subtopic.
+- For critique-style tasks: are the named design elements (e.g., laterality, dosage, sample size, controls, primary endpoint) addressed concretely, not just listed?
+
+Set the `coverage` field:
+
+- `"sufficient"` — every angle of the task is addressed with traceable, distinct sources or (for design critique) concrete reasoning grounded in the manuscript context. A downstream writer can confidently use this output without more research.
+- `"partial"` — the topic is addressed but with noticeable holes: missing angles, only one source, vague treatment of a metric the task asked about, or only generic statements where specifics were requested.
+- `"insufficient"` — the output does not actually answer the task, is too generic, or covers only a small fraction of the angles the task asked for.
+
+Populate the `gaps` field with **0–4 short, concrete sentences** describing what is missing or under-developed. Each gap must be **actionable** so the orchestrator can turn it into a follow-up subtask, e.g.:
+
+- "No comparable studies cited for the sample-size choice."
+- "Threshold metric mentioned in the task is not benchmarked against literature."
+- "Only one source provided; needs corroborating studies."
+- "Critique does not engage with the duration parameter from experimental_design."
+
+Do **not** list gaps that are out of scope of the subtask, and do **not** invent new research directions — only flag what the subtask itself promised to deliver but did not.
+
+`coverage` is independent of `source_quality`. A task can have `source_quality: "clear"` but `coverage: "partial"` (good but too narrow), or `source_quality: "weak"` but `coverage: "sufficient"` (rare; only if the subtask is naturally light on citable sources).
+
 ---
 
 ## Rules
@@ -61,11 +91,13 @@ For each `sources` entry that has an `excerpt` with a specific quantitative valu
 - All text in **English**.
 - Do **not** invent sources or "fix" the summary.
 - `verdict`:
-  - `pass` — sources are traceable, `key_points` are backed, summary is clear, confidence is appropriate.
-  - `warn` — partial sources, minor clarity issues, or mild overconfidence; usable with caution.
-  - `fail` — no citable sources, empty/error task, summary contradicts listed sources, or confidence is grossly overstated.
+  - `pass` — sources are traceable, `key_points` are backed, summary is clear, confidence is appropriate, **and** coverage is `"sufficient"` (or `"partial"` only when gaps are minor).
+  - `warn` — partial sources, minor clarity issues, mild overconfidence, **or** `coverage: "partial"` with specific gaps; usable with caution.
+  - `fail` — no citable sources, empty/error task, summary contradicts listed sources, confidence is grossly overstated, **or** `coverage: "insufficient"`.
 - `source_quality`: `clear` | `weak` | `missing`
 - `clarity`: `clear` | `unclear` | `contradictory`
+- `coverage`: `sufficient` | `partial` | `insufficient` (see Step 6).
+- `gaps`: 0–4 short, actionable sentences (see Step 6).
 - `issues`: short bullet strings (0–6). Include:
   - Any `key_points` items not traceable to a `sources` entry.
   - Any `confidence` level higher than sources justify.
@@ -79,6 +111,8 @@ For each `sources` entry that has an `excerpt` with a specific quantitative valu
   "verdict": "pass",
   "source_quality": "clear",
   "clarity": "clear",
+  "coverage": "sufficient",
+  "gaps": [],
   "issues": [],
   "source_notes": "One sentence on how well sources support both summary and key_points. DOIs unverified — manual spot-check recommended for any source used in a manuscript."
 }

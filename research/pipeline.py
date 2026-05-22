@@ -12,10 +12,10 @@ from .agents.analyst import ResearchIndexBuilder
 from .agents.orchestrator import OrchestratorAgent
 from .agents.search_coordinator import SearchCoordinator
 from .agents.validator import ResearchValidator
+from .clients.gemini_client import orchestrator_followup_client
 from .clients.openai_client import OpenAIClient
 from .config import ACTIVE_SEARCH_AGENT_IDS, Settings
-from .utils import short_step_label
-from .manuscript_context import load_manuscript_context_from_execution
+from .manuscript_context import ManuscriptContext, load_manuscript_context_from_execution
 from .research_storage import (
     EXEC_GATHERED_AGGREGATE,
     EXEC_INDEX_MD,
@@ -29,12 +29,17 @@ from .research_storage import (
     write_validation_bundle,
 )
 from .schemas import (
+    ExecutionStrategy,
     GatheredResearchBundle,
+    OrchestratorConfig,
     OrchestratorPlan,
     PipelineRunResult,
+    ResearchGoal,
     SynthesisReport,
+    TargetAgent,
     ValidatedResearchBundle,
 )
+from .utils import short_step_label
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +92,7 @@ class ResearchPipeline:
         self._plan_only = plan_only
         self._orchestrator = OrchestratorAgent(
             OpenAIClient(settings),
+            orchestrator_followup_client(settings),
             settings=settings,
         )
         self._search = SearchCoordinator.from_settings(settings)
@@ -98,28 +104,123 @@ class ResearchPipeline:
         run_dir: Path,
         plan: OrchestratorPlan,
         *,
-        manuscript=None,
+        manuscript: ManuscriptContext | None = None,
     ) -> tuple[GatheredResearchBundle, ValidatedResearchBundle, SynthesisReport | None, list[str]]:
         errors: list[str] = []
         research_dir_name, aggregate_name, validation_dir_name, index_name = layout_for_run_dir(
             run_dir,
         )
 
+        # --- Round 1: initial search + validate ---
+        print("[STEP] Running literature search (round 1)", flush=True)
         bundle = await self._search.gather(plan, manuscript=manuscript)
+
+        print("[STEP] Validating research sources (round 1)", flush=True)
+        validated = await self._validator.validate_bundle(plan, bundle, start_index=1)
+
+        # --- Follow-up rounds: orchestrator reads validation, requests gap-filling tasks ---
+        followup_log: list[dict] = []
+        max_rounds = max(0, int(self._settings.research_followup_rounds))
+        max_followup_tasks = max(1, int(self._settings.research_followup_max_tasks))
+
+        for round_idx in range(1, max_rounds + 1):
+            print(
+                f"[STEP] Reviewing validation report (follow-up round {round_idx})",
+                flush=True,
+            )
+            try:
+                decision = await self._orchestrator.refine_plan(
+                    plan=plan,
+                    bundle=bundle,
+                    validated=validated,
+                    max_followup_tasks=max_followup_tasks,
+                )
+            except Exception as exc:
+                msg = (
+                    f"Follow-up orchestrator call failed (round {round_idx}): {exc}"
+                )
+                logger.exception(msg)
+                errors.append(msg)
+                followup_log.append({"round": round_idx, "error": str(exc)})
+                break
+
+            followup_log.append(
+                {
+                    "round": round_idx,
+                    "reasoning": decision.reasoning,
+                    "gemini_tasks": decision.gemini_tasks,
+                    "openai_tasks": decision.openai_tasks,
+                },
+            )
+
+            if not decision.has_tasks:
+                print(
+                    f"[STEP] Follow-up round {round_idx}: coverage sufficient — "
+                    "no new tasks",
+                    flush=True,
+                )
+                break
+
+            n_new = len(decision.gemini_tasks) + len(decision.openai_tasks)
+            print(
+                f"[STEP] Follow-up round {round_idx}: orchestrator requested "
+                f"{n_new} new task(s)",
+                flush=True,
+            )
+            for t in decision.gemini_tasks:
+                print(
+                    f"[STEP] Follow-up plan (gemini search): {short_step_label(t)}",
+                    flush=True,
+                )
+            for t in decision.openai_tasks:
+                print(
+                    f"[STEP] Follow-up plan (openai search): {short_step_label(t)}",
+                    flush=True,
+                )
+
+            followup_plan = self._build_followup_plan(plan, decision)
+            print(
+                f"[STEP] Running literature search (follow-up round {round_idx})",
+                flush=True,
+            )
+            followup_bundle = await self._search.gather(
+                followup_plan,
+                manuscript=manuscript,
+            )
+
+            print(
+                f"[STEP] Validating research sources (follow-up round {round_idx})",
+                flush=True,
+            )
+            followup_validated = await self._validator.validate_bundle(
+                plan,
+                followup_bundle,
+                start_index=len(bundle.results) + 1,
+            )
+
+            bundle = GatheredResearchBundle(
+                plan=plan,
+                results=[*bundle.results, *followup_bundle.results],
+            )
+            validated = ValidatedResearchBundle(
+                plan=plan,
+                results=[*validated.results, *followup_validated.results],
+            )
+
+        # --- Write final combined artifacts (one set per run) ---
         research_dir = write_research_bundle(
             run_dir,
             bundle,
             research_dir_name=research_dir_name,
             aggregate_filename=aggregate_name,
         )
-
-        print("[STEP] Validating research sources", flush=True)
-        validated = await self._validator.validate_all(plan, research_dir)
         validation_dir = write_validation_bundle(
             run_dir,
             validated,
             validation_dir_name=validation_dir_name,
         )
+        if followup_log:
+            self._write_followup_log(run_dir, plan, followup_log)
 
         print("[STEP] Building research index", flush=True)
         report: SynthesisReport | None = None
@@ -150,6 +251,72 @@ class ResearchPipeline:
             errors.append(msg)
 
         return bundle, validated, report, errors
+
+    def _build_followup_plan(
+        self,
+        plan: OrchestratorPlan,
+        decision,
+    ) -> OrchestratorPlan:
+        """Construct a minimal plan that the search coordinator can execute for the new tasks."""
+        targets: list[TargetAgent] = []
+        if decision.gemini_tasks:
+            targets.append(
+                TargetAgent(
+                    agent_id="gemini_search",
+                    model=self._settings.gemini_search_model,
+                    tasks=list(decision.gemini_tasks),
+                ),
+            )
+        if decision.openai_tasks:
+            targets.append(
+                TargetAgent(
+                    agent_id="openai_search",
+                    model=self._settings.openai_search_model,
+                    tasks=list(decision.openai_tasks),
+                ),
+            )
+        validator_agent = plan.validator_agent()
+        validator_tasks = (
+            list(validator_agent.tasks) if validator_agent else ["Follow-up validation"]
+        )
+        targets.append(
+            TargetAgent(
+                agent_id="research_validator",
+                model=self._settings.research_validator_model,
+                tasks=validator_tasks,
+            ),
+        )
+        return OrchestratorPlan(
+            orchestrator_config=OrchestratorConfig(),
+            research_goal=ResearchGoal(
+                main_topic=plan.research_goal.main_topic,
+                required_outputs=list(plan.research_goal.required_outputs),
+            ),
+            execution_strategy=ExecutionStrategy(target_agents=targets),
+        )
+
+    def _write_followup_log(
+        self,
+        run_dir: Path,
+        plan: OrchestratorPlan,
+        rounds: list[dict],
+    ) -> None:
+        layout = layout_for_run_dir(run_dir)
+        # Use the same numeric prefix as the orchestrator plan file in each layout.
+        if layout[0] == EXEC_RESEARCH_DIR:
+            filename = "05_orchestrator_followups.json"
+        else:
+            filename = "01_orchestrator_followups.json"
+        payload = {
+            "main_topic": plan.research_goal.main_topic,
+            "max_rounds": int(self._settings.research_followup_rounds),
+            "max_tasks_per_round": int(self._settings.research_followup_max_tasks),
+            "rounds": rounds,
+        }
+        (run_dir / filename).write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     async def run(self, research_goal: str) -> PipelineRunResult:
         errors: list[str] = []
@@ -207,6 +374,7 @@ class ResearchPipeline:
     ) -> None:
         source_count = sum(len(r.sources) for r in bundle.results if r.success)
         verdicts = [v.verdict for v in validated.results]
+        coverages = [v.coverage for v in validated.results]
         meta = {
             "title": report.title,
             "generated_at_utc": report.generated_at_utc.isoformat(),
@@ -219,6 +387,9 @@ class ResearchPipeline:
             "validation_pass": verdicts.count("pass"),
             "validation_warn": verdicts.count("warn"),
             "validation_fail": verdicts.count("fail"),
+            "coverage_sufficient": coverages.count("sufficient"),
+            "coverage_partial": coverages.count("partial"),
+            "coverage_insufficient": coverages.count("insufficient"),
             "total_sources_cited": source_count,
             "models": {
                 "orchestrator": self._settings.orchestrator_model,
@@ -228,6 +399,7 @@ class ResearchPipeline:
                 "research_index": self._settings.research_index_model,
             },
             "main_topic": plan.research_goal.main_topic,
+            "followup_rounds_enabled": int(self._settings.research_followup_rounds),
         }
         (run_dir / filename).write_text(json.dumps(meta, indent=2), encoding="utf-8")
 

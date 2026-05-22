@@ -10,8 +10,9 @@ from pathlib import Path
 from ..clients.gemini_client import validator_client
 from ..config import Settings
 from ..prompts.loader import load_research_validator_instruction
-from ..research_storage import load_research_manifest, load_task_result
+from ..research_storage import load_research_manifest, load_task_result, task_artifact_slug
 from ..schemas import (
+    GatheredResearchBundle,
     GatheredTaskResult,
     OrchestratorPlan,
     ValidatedResearchBundle,
@@ -39,6 +40,8 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "verdict": "fail",
             "source_quality": "missing",
             "clarity": "unclear",
+            "coverage": "insufficient",
+            "gaps": ["Search task failed; no information gathered."],
             "issues": [result.error or "Search task failed."],
             "source_notes": "Task did not complete successfully.",
         }
@@ -50,6 +53,8 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
                 "verdict": "warn",
                 "source_quality": "missing",
                 "clarity": "unclear",
+                "coverage": "insufficient",
+                "gaps": ["Mismatch summary missing — fix recommendation not produced."],
                 "issues": ["Mismatch review summary is empty."],
                 "source_notes": "Figure-text mismatch task — no sources required, but summary is missing.",
             }
@@ -57,6 +62,8 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "verdict": "pass",
             "source_quality": "missing",
             "clarity": "clear",
+            "coverage": "sufficient",
+            "gaps": [],
             "issues": [],
             "source_notes": "Figure-text mismatch task — no literature sources required per task instructions.",
         }
@@ -66,6 +73,8 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "verdict": "fail",
             "source_quality": "missing",
             "clarity": "unclear",
+            "coverage": "insufficient",
+            "gaps": ["No literature sources gathered for this subtask."],
             "issues": ["No sources listed in search output."],
             "source_notes": "Summary is not backed by bibliographic sources.",
         }
@@ -74,6 +83,8 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "verdict": "warn",
             "source_quality": "weak",
             "clarity": "unclear",
+            "coverage": "partial",
+            "gaps": ["Sources lack verifiable bibliographic detail; corroborating studies needed."],
             "issues": ["Sources lack verifiable bibliographic detail (year, DOI, or author–year)."],
             "source_notes": "Treat findings as illustrative until sources are improved.",
         }
@@ -82,13 +93,28 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
             "verdict": "warn",
             "source_quality": "clear",
             "clarity": "unclear",
+            "coverage": "partial",
+            "gaps": ["Summary is empty; sources cannot be interpreted."],
             "issues": ["Summary is empty."],
             "source_notes": "Sources present but summary missing.",
+        }
+    # Heuristic: a single source is rarely enough coverage for a research subtopic.
+    if len(result.sources) < 2:
+        return {
+            "verdict": "warn",
+            "source_quality": "clear",
+            "clarity": "clear",
+            "coverage": "partial",
+            "gaps": ["Only one source — needs corroborating studies."],
+            "issues": [],
+            "source_notes": "Sources present but only one cited; corroborating studies recommended.",
         }
     return {
         "verdict": "pass",
         "source_quality": "clear",
         "clarity": "clear",
+        "coverage": "partial",
+        "gaps": [],
         "issues": [],
         "source_notes": "Sources appear bibliographic; summary present.",
     }
@@ -141,6 +167,28 @@ class ResearchValidator:
         if clarity not in ("clear", "unclear", "contradictory"):
             clarity = str(baseline["clarity"])
 
+        coverage = str(data.get("coverage") or baseline["coverage"]).lower()
+        if coverage not in ("sufficient", "partial", "insufficient"):
+            coverage = str(baseline["coverage"])
+
+        # If the deterministic baseline says insufficient (e.g. search failed, no sources),
+        # never let the LLM upgrade coverage to sufficient.
+        if baseline["coverage"] == "insufficient" and coverage == "sufficient":
+            coverage = "insufficient"
+
+        gaps_raw = data.get("gaps") or baseline["gaps"]
+        gaps = [str(g).strip() for g in gaps_raw if str(g).strip()] if isinstance(gaps_raw, list) else []
+        # Hard cap to keep payload reasonable for the follow-up orchestrator.
+        gaps = gaps[:4]
+
+        # Force consistency: insufficient coverage with no gaps listed is useless to the
+        # follow-up orchestrator, so synthesize a generic gap from the issues / baseline.
+        if coverage == "insufficient" and not gaps:
+            baseline_gaps = baseline["gaps"] if isinstance(baseline["gaps"], list) else []
+            gaps = [str(g) for g in baseline_gaps] or [
+                "Coverage marked insufficient but no specific gap listed."
+            ]
+
         issues_raw = data.get("issues") or baseline["issues"]
         issues = [str(i).strip() for i in issues_raw if str(i).strip()] if isinstance(issues_raw, list) else []
 
@@ -152,6 +200,8 @@ class ResearchValidator:
             verdict=verdict,  # type: ignore[arg-type]
             source_quality=source_quality,  # type: ignore[arg-type]
             clarity=clarity,  # type: ignore[arg-type]
+            coverage=coverage,  # type: ignore[arg-type]
+            gaps=gaps,
             issues=issues,
             source_notes=str(data.get("source_notes") or baseline["source_notes"]).strip(),
         )
@@ -180,4 +230,38 @@ class ResearchValidator:
 
         logger.info("ResearchValidator: validating %d task files", len(tasks))
         results = await asyncio.gather(*[_one(t) for t in tasks])
+        return ValidatedResearchBundle(plan=plan, results=list(results))
+
+    async def validate_bundle(
+        self,
+        plan: OrchestratorPlan,
+        bundle: GatheredResearchBundle,
+        *,
+        start_index: int = 1,
+    ) -> ValidatedResearchBundle:
+        """Validate an in-memory bundle (no disk reads).
+
+        Assigns the same slugs as :func:`research_storage.write_research_bundle`
+        so the validation artifacts stay aligned with the eventual research files.
+        """
+        if not bundle.results:
+            return ValidatedResearchBundle(plan=plan, results=[])
+
+        async def _one(idx: int, result: GatheredTaskResult) -> ValidatedTaskResult:
+            slug = task_artifact_slug(result.agent_id, idx, result.task)
+            filename = f"{slug}.json"
+            return await self.validate_task(
+                slug=slug,
+                research_filename=filename,
+                result=result,
+                plan=plan,
+            )
+
+        logger.info("ResearchValidator: validating %d in-memory results", len(bundle.results))
+        results = await asyncio.gather(
+            *[
+                _one(idx, r)
+                for idx, r in enumerate(bundle.results, start=start_index)
+            ],
+        )
         return ValidatedResearchBundle(plan=plan, results=list(results))

@@ -11,7 +11,7 @@ AutoPaper/
 ├── backend/              # FastAPI service — REST + SSE API
 │   ├── main.py           # Endpoints, Swagger docs, static file serving
 │   ├── pipeline_runner.py# Async subprocess executor for the pipeline
-│   ├── run_store.py      # In-memory run registry with SSE pub/sub
+│   ├── run_store.py      # Run registry (persisted under output/_runs/, SSE pub/sub)
 │   └── requirements.txt
 │
 ├── frontend/             # React / Vite standalone app
@@ -67,6 +67,31 @@ Opens at **http://localhost:8000** — backend serves both the API and the compi
 .\start.ps1 -Dev
 # API:      http://localhost:8000
 # Frontend: http://localhost:5173
+```
+
+### API dev server (safe reload)
+
+Do **not** use `uvicorn main:app --reload` alone — the pipeline writes files under `output/`, which triggers a reload and clears in-memory run IDs.
+
+```powershell
+python run_dev.py
+```
+
+`run_dev.py` sets `reload_dirs` to `backend/`, `src/`, `editor/`, `research/`, and `paper_input/` only — **not** `output/`. Figure generation writes `.py` files under `output/execution_NNN/11_figures/`; watching that tree with plain `--reload` kills long runs.
+
+Run metadata and logs are persisted under `output/_runs/{run_id}.json` and `.log` so `GET /api/runs/{id}` survives restarts.
+
+For long pipeline runs, prefer **no reload**:
+
+```powershell
+python run_stable.py
+# or: uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Resume a stuck editor run (reuses plan + sections, continues figures):
+
+```powershell
+python -m autopaper.main.app --editor-only --editor-resume --execution-dir output/execution_001 --log-editor
 ```
 
 ---

@@ -19,8 +19,16 @@ def _load_family_prompt(family: str) -> str:
 
 
 def load_orchestrator_instruction() -> str:
-    """OpenAI orchestrator (GPT-4o): plan via function calling."""
+    """OpenAI orchestrator (GPT-4o): initial plan via function calling (first call only)."""
     return _load_family_prompt("openai_orchestrator")
+
+
+def load_orchestrator_followup_instruction() -> str:
+    """Gemini follow-up refinement after validation (second+ calls; JSON, not tools)."""
+    path = _PROMPTS_ROOT / "openai_orchestrator" / "followup.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"Missing follow-up prompt: {path}")
+    return path.read_text(encoding="utf-8").strip()
 
 
 def load_gemini_search_instruction() -> str:
