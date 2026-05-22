@@ -59,7 +59,7 @@ Same but Abstract ≤ 150 words; may combine Background into Introduction.
 - Each `reuse_path` may appear on **at most one** figure (no duplicate reuse of the same file).
 - Generate a new figure when a key quantitative claim needs a visualisation and no usable image fits.
 - Maximum 4 figures for conference; 6 for journal.
-- `figure_id` must be short and descriptive, e.g. `fig1_probe_design`, `fig2_snr_timeline`.
+- `figure_id` must be short and descriptive of what the figure shows, e.g. `fig1_system_overview`, `fig2_metric_vs_time`. Choose names that fit the actual manuscript topic — do not reuse generic placeholders.
 - Populate `data_hints` with relevant quantitative values from key_claims.
 
 ---

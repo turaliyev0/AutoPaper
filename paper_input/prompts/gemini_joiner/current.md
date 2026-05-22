@@ -29,7 +29,7 @@ Collect every item from `key_claims` arrays in `cleaned_text.text_blocks` into a
 
 Link (`linked_images`, `mentioned_in_text`, `cross_references`) **only** when:
 
-- The figure **shows** the same implant/probe type, experimental comparison, animal model, or measurement type the text discusses; or
+- The figure **shows** the same system, experimental comparison, target population, or measurement type the text discusses; or
 - The text **explicitly refers** to that figure file or its content (not a single shared word).
 
 **Do not link** when overlap is only a generic term (e.g. text mentions "material quality" while the figure compares unrelated categories such as cost tiers across regions, unless the text states that figure presents those results).
@@ -41,12 +41,12 @@ Use one of these values — pick the most precise:
 - `"depicts_device"` — figure shows the physical hardware described in text.
 - `"provides_measurement_data"` — figure presents results of metrics mentioned in text.
 - `"supports_hypothesis"` — figure data directly supports a stated hypothesis from text.
-- `"depicts_entity"` — figure shows an entity (material, animal model, setup) described in text, without implying data support.
+- `"depicts_entity"` — figure shows an entity (material, system component, setup, or subject group) described in text, without implying data support.
 - `"contradicts_text"` — figure presents data that conflicts with text claims.
 
 **Mismatch handling (required)**
 
-Compare each readable figure to `cleaned_text`. If the figure's labeled comparison or subject clearly **differs** from the study design in text (different materials, arms, species, or metric than the main experiment), add an entry to `mismatch_flags`:
+Compare each readable figure to `cleaned_text`. If the figure's labeled comparison or subject clearly **differs** from the study design in text (different materials, study arms, target population, or metric than the main experiment), add an entry to `mismatch_flags`:
 
 ```json
 {

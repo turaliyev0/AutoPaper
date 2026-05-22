@@ -32,7 +32,10 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                     "required_outputs": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "3–6 required report sections or questions.",
+                        "description": (
+                            "Concrete research deliverables the report must cover. "
+                            "Use as many as the topic actually requires (no fixed minimum or maximum)."
+                        ),
                         "minItems": 1,
                     },
                 },
@@ -46,7 +49,8 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "delegate_gemini_search",
             "description": (
-                "Assign 2–4 background/literature subtasks to gemini_search (distinct wording)."
+                "Assign background/literature subtasks to gemini_search (distinct wording). "
+                "Use as many subtasks as the topic requires — no fixed count."
             ),
             "parameters": {
                 "type": "object",
@@ -55,7 +59,6 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "type": "array",
                         "items": {"type": "string"},
                         "minItems": 1,
-                        "maxItems": 6,
                     },
                 },
                 "required": ["tasks"],
@@ -68,7 +71,8 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "function": {
             "name": "delegate_openai_search",
             "description": (
-                "Assign 2–4 methods/limitations/comparison subtasks to openai_search."
+                "Assign methods/limitations/comparison/figure-mismatch subtasks to openai_search. "
+                "Use as many subtasks as the topic requires — no fixed count."
             ),
             "parameters": {
                 "type": "object",
@@ -77,7 +81,6 @@ ORCHESTRATOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "type": "array",
                         "items": {"type": "string"},
                         "minItems": 1,
-                        "maxItems": 6,
                     },
                 },
                 "required": ["tasks"],

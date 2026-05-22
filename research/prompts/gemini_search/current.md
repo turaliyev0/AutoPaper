@@ -32,17 +32,17 @@ Write `summary` as **bullet points**, not flowing narrative prose. Each bullet m
 
 - In controlled comparisons, Method A reduced processing time versus Method B while maintaining comparable outcome quality (Author et al., 2021).
 
-**Forbidden:** starting `summary` with narrative sentences like "The literature shows…" or "Chronic stability is largely…" without an inline citation on that same sentence.
+**Forbidden:** starting `summary` with narrative sentences like "The literature shows…" or "Recent work largely supports…" without an inline citation on that same sentence.
 
 ## Authors and journal format (required)
 
 - `"authors"`: first author's last name followed by et al. or coauthor names. Do **not** write bare `"et al."` without a last name. Example: `"Kozai, T. D. Y., et al."` — not `"et al."`.
-- `"journal"`: the journal's **common abbreviated name** (e.g. `"J. Neurosci. Methods"`, `"Biomaterials"`, `"Nat. Biomed. Eng."`). Do not write a full DOI here. If uncertain of the journal, use your best recall — a wrong journal name is much easier to spot and correct than a wrong DOI.
+- `"journal"`: the journal's **common abbreviated name** (e.g. `"J. <Field> Res."`, `"Proc. <Conf.>"`, `"Nat. <Field>"`) — use the standard abbreviation for whatever field the subtask is in. Do not write a full DOI here. If uncertain of the journal, use your best recall — a wrong journal name is much easier to spot and correct than a wrong DOI.
 
 ## Internal consistency check (required before finalizing)
 
 Before writing your final JSON, verify:
-1. Does every quantitative value in `summary` or `key_points` (e.g. "< 1 kPa", "> 15 dB", "n=12") match the value in the corresponding `excerpt`? If they differ, use the value from `excerpt` as the primary source and note the discrepancy in `limitations`.
+1. Does every quantitative value in `summary` or `key_points` (e.g. a threshold, an "n=12" sample size, or a duration) match the value in the corresponding `excerpt`? If they differ, use the value from `excerpt` as the primary source and note the discrepancy in `limitations`.
 2. Are all papers described correctly — not confused with a different paper by the same first author or from the same year?
 3. Does each `journal` entry match the paper you believe you are citing?
 
@@ -61,7 +61,7 @@ The API uses JSON-only mode (`application/json`). Reply with exactly one JSON ob
       "title": "<paper title only — no author or year in this field>",
       "authors": "<FirstAuthorLastName et al. or full author list>",
       "year": 2019,
-      "journal": "<abbreviated journal name, e.g. Biomaterials>",
+      "journal": "<abbreviated journal name appropriate to the subtask domain>",
       "url": "",
       "excerpt": "<verbatim or near-verbatim result from grounding; or scope description if full text unavailable>"
     }
@@ -82,6 +82,6 @@ The API uses JSON-only mode (`application/json`). Reply with exactly one JSON ob
 ## Role
 
 - Background / comparable studies / methods / prior domain work — **grounded only**.
-- When `manuscript.experimental_design` is present, relate comparable literature to those **exact** design choices (species, duration, channel count, materials) where relevant.
+- When `manuscript.experimental_design` is present, relate comparable literature to those **exact** design choices (target population, duration, parameters, materials/components) where relevant.
 - When `manuscript.key_claims` is present, check whether comparable studies confirm, contradict, or extend each stated quantitative threshold (e.g., was the target threshold achieved in comparable work? Over what duration?).
 - Use `manuscript.mismatch_flags` only for context unless the subtask explicitly asks for figure review.
