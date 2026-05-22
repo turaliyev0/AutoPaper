@@ -13,7 +13,8 @@ from .agents.orchestrator import OrchestratorAgent
 from .agents.search_coordinator import SearchCoordinator
 from .agents.validator import ResearchValidator
 from .clients.openai_client import OpenAIClient
-from .config import Settings
+from .config import ACTIVE_SEARCH_AGENT_IDS, Settings
+from .utils import short_step_label
 from .manuscript_context import load_manuscript_context_from_execution
 from .research_storage import (
     EXEC_GATHERED_AGGREGATE,
@@ -38,6 +39,29 @@ from .schemas import (
 logger = logging.getLogger(__name__)
 
 PLAN_FILENAME = "05_orchestrator_plan.json"
+
+_LEGACY_SEARCH_IDS: dict[str, str] = {
+    "gemini_explorer": "gemini_search",
+}
+
+
+def _print_research_plan(plan: OrchestratorPlan) -> None:
+    """Emit planned literature tasks for the UI (SSE step/log stream)."""
+    print(f"[STEP] Research focus: {plan.research_goal.main_topic}", flush=True)
+    n_search = 0
+    for target in plan.execution_strategy.target_agents:
+        agent_id = _LEGACY_SEARCH_IDS.get(target.agent_id, target.agent_id)
+        if agent_id not in ACTIVE_SEARCH_AGENT_IDS:
+            continue
+        label = agent_id.replace("_", " ")
+        for task in target.tasks:
+            n_search += 1
+            print(
+                f"[STEP] Research plan ({label}): {short_step_label(task)}",
+                flush=True,
+            )
+    if n_search:
+        print(f"[STEP] Running {n_search} literature search task(s)", flush=True)
 
 
 def _force_replan() -> bool:
@@ -81,9 +105,6 @@ class ResearchPipeline:
             run_dir,
         )
 
-        n_tasks = sum(len(a.tasks) for a in plan.execution_strategy.target_agents
-                      if a.agent_id != "research_validator")
-        print(f"[STEP] Searching literature — {n_tasks} task(s) in parallel", flush=True)
         bundle = await self._search.gather(plan, manuscript=manuscript)
         research_dir = write_research_bundle(
             run_dir,
@@ -137,6 +158,7 @@ class ResearchPipeline:
 
         print("[STEP] Building research plan", flush=True)
         plan = await self._orchestrator.create_plan(research_goal)
+        _print_research_plan(plan)
         (run_dir / "01_orchestrator_plan.json").write_text(
             plan.model_dump_json(indent=2),
             encoding="utf-8",
@@ -249,6 +271,7 @@ class ResearchPipeline:
             print("[STEP] Building research plan", flush=True)
             plan = await self._orchestrator.create_plan(research_goal)
             plan_path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+        _print_research_plan(plan)
 
         bundle = None
         validated = None

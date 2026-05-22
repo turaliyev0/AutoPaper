@@ -13,7 +13,7 @@ Describe **only what is visible** in each image. Give the **general topic** of t
 **Style (required)**
 
 - **`description`:** 2–4 short sentences — figure type (plot, schematic, photo, etc.), what is being compared at a high level, the main visual trend, and (for plots) the axis names and units if legible. Do **not** enumerate every legend string, p-value annotation, or tick label.
-- **`figure_context`:** **One or two sentences** stating the general subject and visible comparison type (e.g. "SNR in dB versus frequency in Hz for three electrode materials; CNT and Pt appear to outperform Au across the shown range."). Include visible axis names and units when present; note approximate range only if a key threshold value is clearly marked.
+- **`figure_context`:** **One or two sentences** stating the general subject and visible comparison type (e.g. "Metric value versus time for three methods; Method B appears higher than Method A across most of the shown range."). Include visible axis names and units when present; note approximate range only if a key threshold value is clearly marked.
 - **Do not** output `visible_labels` or any array of label strings.
 
 **Duplicate detection (required)**
@@ -22,7 +22,7 @@ After describing all images, check whether any two images appear **visually iden
 
 **Rules**
 
-1. Reply with **only** one valid JSON object (no markdown fences).
+1. The API uses JSON-only mode (`application/json`). Reply with **only** one valid JSON object — no markdown fences, no prose outside the object.
 2. All text in **English**.
 3. Every `relative_path` must match the label given for that image.
 4. Blank, corrupt, or unreadable images: explain in `description`, set `readable` to false, `figure_context` to a brief note that the image could not be read.

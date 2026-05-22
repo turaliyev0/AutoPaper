@@ -149,6 +149,7 @@ def generate_json(
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
         response_mime_type="application/json",
+        temperature=0.2,
     )
     user_preview = ""
     if content_parts:
@@ -195,4 +196,6 @@ def generate_json(
             "Empty response from Gemini (no JSON text). "
             "Check finish_reason / safety filters on the response."
         )
-    return json.loads(text)
+    from research.utils import extract_json_object
+
+    return extract_json_object(text)

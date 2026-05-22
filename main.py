@@ -12,7 +12,19 @@ serves it as a single-page app on all non-API paths.
 from __future__ import annotations
 
 import asyncio
+import sys
+
+# Windows: uvicorn may use SelectorEventLoop, which cannot spawn subprocesses.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import json
+import sys
+
+# Windows: SelectorEventLoop cannot run subprocesses (NotImplementedError).
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+import re
 import uuid
 from pathlib import Path
 from typing import Annotated
@@ -23,8 +35,24 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend.pipeline_runner import run_pipeline
+from backend.pipeline_runner import MAX_CONCURRENT_RUNS, run_pipeline
 from backend.run_store import RunStatus, store
+
+_SAFE_RE = re.compile(r"[^\w.\-]")   # keep word chars, dots, hyphens
+
+
+def _safe_filename(original: str, index: int) -> str:
+    """Return a safe, short filename that won't exceed Windows MAX_PATH."""
+    stem = Path(original).stem
+    suffix = Path(original).suffix.lower() or ".jpg"
+    # Keep only safe characters, collapse runs of underscores
+    stem = _SAFE_RE.sub("_", stem)
+    stem = re.sub(r"_+", "_", stem).strip("_")
+    # Truncate stem so total filename stays under 60 chars
+    max_stem = 50 - len(suffix)
+    if len(stem) > max_stem or len(stem) == 0:
+        stem = f"image_{index:02d}"
+    return f"{stem}{suffix}"
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -107,9 +135,11 @@ class HealthResponse(BaseModel):
 
 
 class ConfigResponse(BaseModel):
-    ieee_formats:          list[str] = Field(description="Accepted values for ieee_format")
-    max_images:            int       = Field(description="Maximum number of images per submission")
-    accepted_image_types:  list[str] = Field(description="Accepted MIME types for image uploads")
+    ieee_formats:           list[str]      = Field(description="Accepted values for ieee_format")
+    max_images:             int            = Field(description="Maximum number of images per submission")
+    accepted_image_types:   list[str]      = Field(description="Accepted MIME types for image uploads")
+    max_concurrent_runs:    int            = Field(description="Max pipelines running at the same time")
+    run_counts:             dict[str, int] = Field(description="Current run counts by status")
 
 # ---------------------------------------------------------------------------
 # App
@@ -164,6 +194,8 @@ def config() -> ConfigResponse:
         ieee_formats=["journal", "conference"],
         max_images=10,
         accepted_image_types=["image/png", "image/jpeg", "image/webp"],
+        max_concurrent_runs=MAX_CONCURRENT_RUNS,
+        run_counts=store.counts(),
     )
 
 # ---------------------------------------------------------------------------
@@ -225,8 +257,8 @@ def delete_run(run_id: str) -> dict:
     run = store.get(run_id)
     if run is None:
         raise HTTPException(404, "Run not found")
-    if run.status == RunStatus.RUNNING:
-        raise HTTPException(409, "Cannot delete a running job")
+    if run.status in (RunStatus.RUNNING, RunStatus.QUEUED):
+        raise HTTPException(409, "Cannot delete a running or queued job")
     store.delete(run_id)
     return {"deleted": run_id}
 
@@ -380,11 +412,12 @@ async def start_run(
     )
 
     saved_images: list[str] = []
-    for img in images:
+    for idx, img in enumerate(images, 1):
         if img.filename:
-            dest = input_path / "images" / Path(img.filename).name
+            safe_name = _safe_filename(img.filename, idx)
+            dest = input_path / "images" / safe_name
             dest.write_bytes(await img.read())
-            saved_images.append(Path(img.filename).name)
+            saved_images.append(safe_name)
 
     run = store.create(paper_title=title.strip(), ieee_format=ieee_format)
     background_tasks.add_task(run_pipeline, run, input_path, ieee_format=ieee_format)

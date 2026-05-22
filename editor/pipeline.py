@@ -296,4 +296,15 @@ def run_editor_pipeline(
     """
     settings = load_editor_settings(env_path)
     pipeline = EditorPipeline(settings)
-    return asyncio.run(pipeline.run(execution_dir, ieee_format=ieee_format, verbose_log=verbose_log))
+    try:
+        return asyncio.run(
+            pipeline.run(execution_dir, ieee_format=ieee_format, verbose_log=verbose_log)
+        )
+    except KeyboardInterrupt:
+        pdf = execution_dir / "13_ieee_manuscript" / "main.pdf"
+        if pdf.is_file():
+            return EditorRunResult(
+                pdf_path=str(pdf.resolve()),
+                errors=["Editor interrupted during shutdown; PDF was already compiled."],
+            )
+        raise

@@ -10,6 +10,7 @@ from .image_validation import (
     collect_mismatch_warnings,
     resolve_mismatch_continuation,
 )
+from .finalize import finalize_without_images
 from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
 from .research_continue import ResearchContinuation, continue_research
 from .run_workspace import (
@@ -149,18 +150,27 @@ def run_ingest_pipeline(
     append_run_manifest_steps(run_path, CLEANED_TEXT_FILENAME)
 
     n_images = len(bundle.get("image_paths", []))
-    print(f"[STEP] Analyzing {n_images} figure(s) with vision AI", flush=True)
-    cleaned_images = VisionAgent(bundle).run()
-    (run_path / CLEANED_IMAGES_FILENAME).write_text(
-        json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    append_run_manifest_steps(run_path, CLEANED_IMAGES_FILENAME)
-
-    assert_images_usable(bundle, cleaned_images)
-
-    print("[STEP] Joining text and image descriptions", flush=True)
-    final = JoinerAgent().run(cleaned_text, cleaned_images)
+    if n_images == 0:
+        print("[STEP] No figures — skipping vision and joiner", flush=True)
+        cleaned_images = {"images": []}
+        (run_path / CLEANED_IMAGES_FILENAME).write_text(
+            json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        append_run_manifest_steps(run_path, CLEANED_IMAGES_FILENAME)
+        print("[STEP] Standardizing text-only manuscript", flush=True)
+        final = finalize_without_images(cleaned_text)
+    else:
+        print(f"[STEP] Analyzing {n_images} figure(s) with vision AI", flush=True)
+        cleaned_images = VisionAgent(bundle).run()
+        (run_path / CLEANED_IMAGES_FILENAME).write_text(
+            json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        append_run_manifest_steps(run_path, CLEANED_IMAGES_FILENAME)
+        assert_images_usable(bundle, cleaned_images)
+        print("[STEP] Joining text and image descriptions", flush=True)
+        final = JoinerAgent().run(cleaned_text, cleaned_images)
     from paper_input.image_registry import apply_image_exclusions
 
     final = apply_image_exclusions(final)

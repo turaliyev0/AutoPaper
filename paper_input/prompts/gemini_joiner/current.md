@@ -32,7 +32,7 @@ Link (`linked_images`, `mentioned_in_text`, `cross_references`) **only** when:
 - The figure **shows** the same implant/probe type, experimental comparison, animal model, or measurement type the text discusses; or
 - The text **explicitly refers** to that figure file or its content (not a single shared word).
 
-**Do not link** when overlap is only a generic term (e.g. text mentions "Gold (Au) electrodes" as a coating while the figure compares unrelated materials such as Pt vs CNT vs Au across frequencies, unless the text states that figure presents those results).
+**Do not link** when overlap is only a generic term (e.g. text mentions "material quality" while the figure compares unrelated categories such as cost tiers across regions, unless the text states that figure presents those results).
 
 **`cross_references` relationship values (required)**
 
@@ -81,7 +81,7 @@ Omit `duplicate_images` if no duplicates are found.
 
 **Response format (required)**
 
-1. Reply with **only** one valid JSON object.
+1. The API uses JSON-only mode (`application/json`). Reply with **only** one valid JSON object — no markdown fences, no prose outside the object.
 2. All text in **English**.
 3. Relative paths only.
 

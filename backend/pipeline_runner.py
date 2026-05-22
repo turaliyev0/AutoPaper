@@ -1,19 +1,67 @@
-"""Runs the full AutoPaper pipeline as a subprocess and streams logs."""
+"""Runs the full AutoPaper pipeline as a subprocess and streams logs.
+
+Concurrency model
+-----------------
+A module-level semaphore (MAX_CONCURRENT_RUNS) limits how many pipeline
+subprocesses run at the same time.  Runs that cannot start immediately are
+queued with status "queued" and begin as soon as a slot opens.
+
+Set the env var AUTOPAPER_MAX_CONCURRENT_RUNS to override the default of 2.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import os
 import re
+import subprocess
 import sys
+import threading
+import traceback
 from pathlib import Path
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from backend.run_store import PipelineRun, RunStatus
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]   # AutoPaper/
 
+# Max pipelines running simultaneously (each is a heavy subprocess + LLM calls)
+MAX_CONCURRENT_RUNS: int = int(os.environ.get("AUTOPAPER_MAX_CONCURRENT_RUNS", "2"))
+_semaphore: asyncio.Semaphore | None = None   # created lazily on first event-loop use
+
+# Unix SIGINT (130) and Windows STATUS_CONTROL_C_EXIT (0xC000013A, signed/unsigned)
+_INTERRUPT_EXIT_CODES = frozenset({130, -2, -1073741510, 3221225786})
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(MAX_CONCURRENT_RUNS)
+    return _semaphore
+
 
 async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str = "journal") -> None:
+    sem = _get_semaphore()
+
+    # ── Queue if all slots are busy ───────────────────────────────────────────
+    if sem.locked():
+        run.status = RunStatus.QUEUED
+        run.push({"type": "status", "status": "queued"})
+        run.push({
+            "type": "log",
+            "line": (
+                f"[AutoPaper] Run queued — {MAX_CONCURRENT_RUNS} pipeline(s) already running. "
+                "Will start automatically when a slot opens."
+            ),
+        })
+
+    async with sem:
+        await _execute(run, input_path, ieee_format=ieee_format)
+
+
+async def _execute(run: PipelineRun, input_path: Path, *, ieee_format: str) -> None:
     cmd = [
         sys.executable, "-m", "autopaper.main.app",
         "--input", str(input_path),
@@ -27,7 +75,6 @@ async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str =
     env = os.environ.copy()
     env["PYTHONPATH"] = str(_PROJECT_ROOT)
     env["PYTHONIOENCODING"] = "utf-8"
-    # Strip color codes from subprocess output
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
 
@@ -35,47 +82,115 @@ async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str =
     run.push({"type": "status", "status": "running"})
     run.push({"type": "log", "line": f"[AutoPaper] Starting pipeline for: {run.paper_title}"})
     run.push({"type": "log", "line": f"[AutoPaper] IEEE format: {ieee_format}"})
-    run.push({"type": "log", "line": "[AutoPaper] ─" * 40})
+    run.push({"type": "log", "line": "[AutoPaper] " + "-" * 60})
 
+    try:
+        returncode = await _run_subprocess(cmd, env, str(_PROJECT_ROOT), run)
+        _resolve_pdf(run)
+
+        if returncode != 0:
+            if _pdf_produced(run) and _is_interrupt_exit(returncode):
+                run.push({
+                    "type": "log",
+                    "line": (
+                        "[AutoPaper] Process was interrupted (e.g. server reload or Ctrl+C) "
+                        "but the PDF was produced — run marked as done."
+                    ),
+                })
+            else:
+                raise RuntimeError(f"Pipeline exited with code {returncode}")
+
+        run.status = RunStatus.DONE
+        run.push({"type": "log", "line": "[AutoPaper] Pipeline completed successfully."})
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        msg = repr(exc) if not str(exc) else str(exc)
+        run.status = RunStatus.ERROR
+        run.error = msg
+        run.push({"type": "log", "line": f"[AutoPaper] ERROR: {msg}"})
+        for tb_line in tb.splitlines():
+            run.push({"type": "log", "line": f"  {tb_line}"})
+
+    run.push({"type": "done", "status": run.status.value})
+
+
+# ── Subprocess (Windows-safe) ─────────────────────────────────────────────────
+
+def _handle_output_line(run: PipelineRun, raw: bytes) -> None:
+    line = _clean(raw.decode("utf-8", errors="replace").rstrip())
+    if not line:
+        return
+    if line.startswith("[STEP]"):
+        msg = line[6:].strip()
+        run.push({"type": "step", "message": msg})
+        run.push({"type": "log", "line": f"  >> {msg}"})
+    else:
+        run.push({"type": "log", "line": line})
+        _parse_progress(run, line)
+
+
+async def _run_subprocess(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
+    """Stream pipeline stdout into run log. Uses threads on Windows when asyncio subprocess is unsupported."""
+    if sys.platform == "win32":
+        return await _run_subprocess_threaded(cmd, env, cwd, run)
+    return await _run_subprocess_asyncio(cmd, env, cwd, run)
+
+
+async def _run_subprocess_asyncio(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            cwd=str(_PROJECT_ROOT),
+            cwd=cwd,
             env=env,
         )
+    except NotImplementedError:
+        return await _run_subprocess_threaded(cmd, env, cwd, run)
 
-        assert proc.stdout is not None
-        async for raw in proc.stdout:
-            line = _clean(raw.decode("utf-8", errors="replace").rstrip())
-            if not line:
-                continue
-            if line.startswith("[STEP]"):
-                msg = line[6:].strip()
-                run.push({"type": "step", "message": msg})
-                run.push({"type": "log", "line": f"  >> {msg}"})
-            else:
-                run.push({"type": "log", "line": line})
-                _parse_progress(run, line)
-
-        await proc.wait()
-        if proc.returncode != 0:
-            raise RuntimeError(f"Pipeline exited with code {proc.returncode}")
-
-        _resolve_pdf(run)
-        run.status = RunStatus.DONE
-        run.push({"type": "log", "line": "[AutoPaper] ✓ Pipeline completed successfully."})
-
-    except Exception as exc:
-        run.status = RunStatus.ERROR
-        run.error = str(exc)
-        run.push({"type": "log", "line": f"[AutoPaper] ERROR: {exc}"})
-
-    run.push({"type": "done", "status": run.status.value})
+    if proc.stdout is None:
+        raise RuntimeError("subprocess stdout pipe is None")
+    async for raw in proc.stdout:
+        _handle_output_line(run, raw)
+    return await proc.wait() or 0
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+async def _run_subprocess_threaded(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
+    """subprocess.Popen in a thread — works with any asyncio loop on Windows."""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+
+    def worker() -> None:
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=cwd,
+                env=env,
+            )
+            if proc.stdout:
+                for raw in proc.stdout:
+                    loop.call_soon_threadsafe(queue.put_nowait, ("line", raw))
+            code = proc.wait()
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", code))
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, ("error", exc))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    while True:
+        kind, payload = await queue.get()
+        if kind == "line":
+            _handle_output_line(run, payload)  # type: ignore[arg-type]
+        elif kind == "done":
+            return int(payload)
+        elif kind == "error":
+            raise payload  # type: ignore[misc]
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
 _UNICODE_BOX = str.maketrans({
@@ -86,17 +201,18 @@ _UNICODE_BOX = str.maketrans({
     "\u2192": "->", "\u2014": "--",
 })
 
+
 def _clean(line: str) -> str:
     line = _ANSI_RE.sub("", line)
     line = line.translate(_UNICODE_BOX)
     return line.strip()
 
 
-_RUN_DIR_RE   = re.compile(r"Run directory:\s*(.+)")
-_PDF_RE       = re.compile(r"PDF\s*:\s*(.+\.pdf)", re.IGNORECASE)
-_SECTIONS_RE  = re.compile(r"Sections\s*:\s*(\d+)/(\d+)")
-_VALID_RE     = re.compile(r"Validation.*?(\d+)\s*pass.*?(\d+)\s*warn.*?(\d+)\s*fail", re.IGNORECASE)
-_EXEC_RE      = re.compile(r"execution_dir\s*:\s*(.+)")
+_RUN_DIR_RE  = re.compile(r"Run directory:\s*(.+)")
+_PDF_RE      = re.compile(r"PDF\s*:\s*(.+\.pdf)", re.IGNORECASE)
+_SECTIONS_RE = re.compile(r"Sections\s*:\s*(\d+)/(\d+)")
+_VALID_RE    = re.compile(r"Validation.*?(\d+)\s*pass.*?(\d+)\s*warn.*?(\d+)\s*fail", re.IGNORECASE)
+_EXEC_RE     = re.compile(r"execution_dir\s*:\s*(.+)")
 
 
 def _parse_progress(run: PipelineRun, line: str) -> None:
@@ -114,7 +230,7 @@ def _parse_progress(run: PipelineRun, line: str) -> None:
 
     m = _SECTIONS_RE.search(line)
     if m:
-        run.sections_ok = int(m.group(1))
+        run.sections_ok    = int(m.group(1))
         run.sections_total = int(m.group(2))
 
     m = _VALID_RE.search(line)
@@ -124,10 +240,30 @@ def _parse_progress(run: PipelineRun, line: str) -> None:
         run.validation_fail = int(m.group(3))
 
 
+def _is_interrupt_exit(code: int) -> bool:
+    if code in _INTERRUPT_EXIT_CODES:
+        return True
+    if code >= 2**31:
+        return (code - 2**32) in _INTERRUPT_EXIT_CODES
+    return False
+
+
+def _pdf_produced(run: PipelineRun) -> bool:
+    return bool(run.pdf_path and Path(run.pdf_path).is_file())
+
+
 def _resolve_pdf(run: PipelineRun) -> None:
-    if run.pdf_path and Path(run.pdf_path).is_file():
+    if _pdf_produced(run):
         return
     if run.execution_dir:
         candidate = Path(run.execution_dir.strip()) / "13_ieee_manuscript" / "main.pdf"
         if candidate.is_file():
             run.pdf_path = str(candidate)
+            return
+    for line in reversed(run.log_lines):
+        m = _PDF_RE.search(line)
+        if m:
+            candidate = Path(m.group(1).strip())
+            if candidate.is_file():
+                run.pdf_path = str(candidate)
+                return

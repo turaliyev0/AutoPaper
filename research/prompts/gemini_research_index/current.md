@@ -43,7 +43,7 @@ describe a paper's content incorrectly or confuse two papers by the same first a
 **Before using any cited source in a manuscript, independently verify:**
 1. The DOI resolves to the correct paper (paste it into [doi.org](https://doi.org)).
 2. The paper's actual content matches the description in the research file.
-3. The quantitative values attributed to the paper (SNR thresholds, modulus values, n counts, etc.) appear in the paper itself.
+3. The quantitative values attributed to the paper (threshold values, sample sizes, durations, etc.) appear in the paper itself.
 
 Validation status `pass` or `source_quality: clear` means the citation format is acceptable — not that the citations are correct.
 ```

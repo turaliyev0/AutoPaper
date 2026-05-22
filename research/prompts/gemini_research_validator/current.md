@@ -57,7 +57,7 @@ For each `sources` entry that has an `excerpt` with a specific quantitative valu
 
 ## Rules
 
-- Reply with **only** one valid JSON object (no markdown fences).
+- The API uses JSON-only mode (`application/json`). Reply with **only** one valid JSON object — no markdown fences, no prose outside the object.
 - All text in **English**.
 - Do **not** invent sources or "fix" the summary.
 - `verdict`:

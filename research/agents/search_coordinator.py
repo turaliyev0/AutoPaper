@@ -8,6 +8,7 @@ import logging
 from ..config import ACTIVE_SEARCH_AGENT_IDS
 from ..manuscript_context import ManuscriptContext
 from ..schemas import GatheredResearchBundle, GatheredTaskResult, OrchestratorPlan
+from ..utils import short_step_label
 from .search import GeminiSearchAgent, OpenAISearchAgent
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,15 @@ class SearchCoordinator:
             if impl is None:
                 continue
             for task in target.tasks:
-                coros.append(impl.run_task(task, plan, manuscript=manuscript))
+                coros.append(
+                    self._run_task_with_progress(
+                        impl,
+                        agent_id,
+                        task,
+                        plan,
+                        manuscript=manuscript,
+                    )
+                )
 
         if not coros:
             raise ValueError(
@@ -81,3 +90,26 @@ class SearchCoordinator:
         ok = len(bundle.successful_results)
         logger.info("Search complete: %d/%d tasks succeeded", ok, len(results))
         return bundle
+
+    async def _run_task_with_progress(
+        self,
+        impl: GeminiSearchAgent | OpenAISearchAgent,
+        agent_id: str,
+        task: str,
+        plan: OrchestratorPlan,
+        *,
+        manuscript: ManuscriptContext | None = None,
+    ) -> GatheredTaskResult:
+        label = short_step_label(task)
+        agent_label = agent_id.replace("_", " ")
+        print(f"[STEP] Researching ({agent_label}): {label}", flush=True)
+        try:
+            result = await impl.run_task(task, plan, manuscript=manuscript)
+        except Exception as exc:
+            print(f"[STEP] Research failed ({agent_label}): {label}", flush=True)
+            raise
+        if result.success:
+            print(f"[STEP] Research complete ({agent_label}): {label}", flush=True)
+        else:
+            print(f"[STEP] Research failed ({agent_label}): {label}", flush=True)
+        return result

@@ -55,6 +55,7 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 - Use **only** the citation pool provided. Cite using `\\cite{citekey}`.
 - Never invent data, results, or paper titles. Only state what is explicitly present in `manuscript_content` or `research_summaries`.
 - Stay within `max_words` (approximate). The word count excludes LaTeX commands.
+- Keep section topic aligned to `article_title`, `manuscript_content`, and `research_summaries`. If inputs are sparse, acknowledge limited detail rather than introducing an unrelated domain.
 
 ### Sections-specific style
 
@@ -110,7 +111,7 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 
 ## Output Constraints
 
-- Respond with valid JSON only.
+- The API uses JSON-only mode (`json_object`). Respond with exactly one JSON object — no markdown fences, no prose outside the object.
 - `latex_body` must be non-empty.
 - `citations_used` must be a subset of the provided `citation_pool` citekeys.
 - `figures_referenced` must only contain IDs from `available_figure_ids`.

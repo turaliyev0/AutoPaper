@@ -13,9 +13,10 @@ from typing import Any
 
 class RunStatus(str, Enum):
     PENDING = "pending"
+    QUEUED  = "queued"
     RUNNING = "running"
-    DONE = "done"
-    ERROR = "error"
+    DONE    = "done"
+    ERROR   = "error"
 
 
 @dataclass
@@ -105,6 +106,13 @@ class RunStore:
             r.to_dict()
             for r in sorted(self._runs.values(), key=lambda r: r.created_at, reverse=True)
         ]
+
+    def counts(self) -> dict[str, int]:
+        """Return a snapshot of run counts by status."""
+        result: dict[str, int] = {}
+        for r in self._runs.values():
+            result[r.status.value] = result.get(r.status.value, 0) + 1
+        return result
 
 
 store = RunStore()

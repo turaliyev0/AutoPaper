@@ -37,7 +37,7 @@ Given a JSON payload describing what the figure should show, your output must be
 
 ## Data Rules
 
-- If `data_hints` provides specific numerical values (e.g. "SNR = 18.4 dB at week 4"), encode those exact values in the plot as realistic data points.
+- If `data_hints` provides specific numerical values (e.g. "Metric = 18.4 units at week 4"), encode those exact values in the plot as realistic data points.
 - For trends (e.g. "gradual signal decay"), generate smooth synthetic data consistent with the described behaviour.
 - Never use completely random data that contradicts `data_hints`.
 - Label data series clearly. Use the article title's domain vocabulary for axis labels.
@@ -54,11 +54,11 @@ import numpy as np
 fig, ax = plt.subplots(figsize=(3.5, 2.8))
 
 weeks = np.array([1, 4, 8, 12, 16])
-snr = np.array([22.1, 21.4, 19.8, 18.4, 17.2])
+metric = np.array([22.1, 21.4, 19.8, 18.4, 17.2])
 
-ax.plot(weeks, snr, 'o-', color='#1f77b4', linewidth=1.5, label='Polyimide probe')
-ax.set_xlabel('Time post-implant (weeks)', fontsize=9)
-ax.set_ylabel('SNR (dB)', fontsize=9)
+ax.plot(weeks, metric, 'o-', color='#1f77b4', linewidth=1.5, label='Method A')
+ax.set_xlabel('Time (weeks)', fontsize=9)
+ax.set_ylabel('Metric value (units)', fontsize=9)
 ax.tick_params(labelsize=8)
 ax.legend(fontsize=8)
 ax.grid(True, linewidth=0.5, alpha=0.5)
@@ -71,7 +71,7 @@ plt.close('all')
 
 ## Output Constraints
 
-- Return ONLY valid JSON with key `"code"`.
+- The API uses JSON-only mode (`json_object`). Return ONLY one valid JSON object with key `"code"` — no markdown fences, no prose outside the object.
 - The script must be a single string (escape newlines as `\n`, quotes as `\"`).
 - Do NOT add markdown fences or comments outside the script.
 - If the previous attempt failed (error feedback provided), fix the exact error described.

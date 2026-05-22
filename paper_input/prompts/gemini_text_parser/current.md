@@ -22,7 +22,7 @@ Use only the data in the user message. Do not reference other projects or generi
 
 **Key claims extraction (required)**
 
-For each `text_blocks` entry, add a `key_claims` array: list every explicitly stated **quantitative claim, hypothesis, or stated experimental outcome** that appears in that file. Use the exact wording from the source for numbers and thresholds (e.g. `"SNR > 15 dB over 180 days"`, `"Young's Modulus ~3 GPa"`). Limit to claims that could be verified or compared against a figure.
+For each `text_blocks` entry, add a `key_claims` array: list every explicitly stated **quantitative claim, hypothesis, or stated experimental outcome** that appears in that file. Use the exact wording from the source for numbers and thresholds (e.g. `"error rate < 2% over 30 days"`, `"throughput ~120 items/hour"`). Limit to claims that could be verified or compared against a figure.
 
 **Citation gap detection (required)**
 
@@ -30,7 +30,7 @@ If a source file contains **no bibliographic citations** (no author–year pairs
 
 **Response format (required)**
 
-1. Reply with **only** one valid JSON object (no markdown fences).
+1. The API uses JSON-only mode (`application/json`). Reply with **only** one valid JSON object — no markdown fences, no prose outside the object.
 2. All text in **English**.
 3. Every `relative_path` is relative to the input project root.
 

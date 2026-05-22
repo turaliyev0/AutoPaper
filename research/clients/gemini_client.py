@@ -62,7 +62,7 @@ class GeminiClient:
         config = types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",
-            temperature=0.3,
+            temperature=0.2,
         )
         log_request(
             label=trace_label,
@@ -137,7 +137,7 @@ class GeminiClient:
         config = types.GenerateContentConfig(
             system_instruction=system,
             response_mime_type="application/json",
-            temperature=1.0,
+            temperature=0.2,
             tools=[types.Tool(google_search=types.GoogleSearch())],
         )
         log_request(
@@ -161,17 +161,10 @@ class GeminiClient:
 
         log_response(response, label="google_search")
         text = getattr(response, "text", None) or ""
+        if not text.strip():
+            raise ValueError("Gemini search returned empty JSON response")
         sources = _sources_from_response(response)
-        try:
-            data = extract_json_object(text)
-        except ValueError:
-            data = {
-                "summary": text.strip() or "No structured output from grounded search.",
-                "key_points": [s.url for s in sources[:10]],
-                "confidence": "medium" if sources else "low",
-                "limitations": "Response was not valid JSON; see summary.",
-            }
-        return data, sources
+        return extract_json_object(text), sources
 
 
 def gemini_search_client(settings: Settings) -> GeminiClient:
