@@ -67,6 +67,13 @@ class FigureSpec(BaseModel):
     )
     reuse_path: str = ""
     order: int = 0
+    primary_sections: list[str] = Field(
+        default_factory=list,
+        description=(
+            "section_id values that should introduce this figure (e.g. ['results']). "
+            "Empty = any section may reference."
+        ),
+    )
 
 
 class EditorPlan(BaseModel):

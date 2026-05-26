@@ -82,10 +82,11 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 
 **Results**
 - Report quantitative values with units.
-- Reference each figure at most once in prose: `as shown in Fig.~\\ref{fig:FIGURE_ID}` using IDs from `available_figure_ids`.
-- Put each `figure_id` in `figures_referenced` only in the **first** section that introduces that figure (usually Results). Later sections may cite `\\ref{fig:...}` but should not repeat the ID in `figures_referenced`.
+- Introduce figures listed in `available_figure_ids` here (first mention + `figures_referenced`).
+- Do **not** reference figures not in `available_figure_ids`.
 
 **Discussion**
+- Use `available_figure_ids` only when this section introduces a figure listed there.
 - When addressing `mismatch_flags`: describe the discrepancy using the figure's caption and reference it as `Fig.~\\ref{fig:FIGURE_ID}` (use the closest matching figure ID from `available_figure_ids`). **Never paste the raw image path** (e.g., `images/image.png`) directly into the text.
 
 **Conclusion**

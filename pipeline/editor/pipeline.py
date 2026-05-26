@@ -19,6 +19,7 @@ from .assembler import assemble_manuscript
 from .config import EditorSettings, load_editor_settings
 from .context import EditorContext, load_editor_context
 from .plan_filters import filter_editor_plan_figures
+from .plan_validate import validate_editor_plan
 from .run_log import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
 from .storage import (
@@ -101,8 +102,10 @@ class EditorPipeline:
                 log.log_context(context)
             except FileNotFoundError as exc:
                 log.fail(str(exc))
-                log.footer(EditorRunResult(errors=[str(exc)]))
-                return EditorRunResult(errors=[str(exc)])
+                errors.append(str(exc))
+                result = EditorRunResult(errors=errors)
+                log.footer(result)
+                return result
 
         # ── STEP 2: Editor Orchestrator ────────────────────────────────
         plan: EditorPlan | None = None
@@ -110,6 +113,7 @@ class EditorPipeline:
             plan = load_editor_plan(execution_dir)
             if plan is not None:
                 plan = filter_editor_plan_figures(plan, context)
+                validate_editor_plan(plan, context)
                 with log.step("Editor Orchestrator (resumed)"):
                     log.ok(f"Loaded existing {EXEC_EDITOR_PLAN} ({len(plan.sections)} sections, {len(plan.figures)} figures)")
 
@@ -123,14 +127,16 @@ class EditorPipeline:
                 try:
                     plan = await self._orchestrator.create_plan(context)
                     plan = filter_editor_plan_figures(plan, context)
+                    validate_editor_plan(plan, context)
                     log.log_plan(plan)
                     write_editor_plan(execution_dir, plan)
                     log.ok("09_editor_plan.json written")
                 except Exception as exc:
                     log.fail(f"Orchestrator failed: {exc}")
                     errors.append(f"Orchestrator failed: {exc}")
-                    log.footer(EditorRunResult(errors=errors))
-                    return EditorRunResult(errors=errors)
+                    result = EditorRunResult(errors=errors)
+                    log.footer(result)
+                    return result
 
         # ── STEP 3: Section Writing ────────────────────────────────────
         sections: list = []

@@ -99,6 +99,31 @@ EDITOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "assign_research_slug",
+            "description": (
+                "Assign one trusted research slug to exactly one section. "
+                "Call once per slug in the Research catalog after map_section_sources."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section_id": {
+                        "type": "string",
+                        "description": "Target section_id (must exist from map_section_sources).",
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": "Research artifact slug from the catalog.",
+                    },
+                },
+                "required": ["section_id", "slug"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "delegate_figure",
             "description": (
                 "Register a figure to be generated. Provide a unique figure_id, "
@@ -138,8 +163,17 @@ EDITOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "description": "Figure number (1-indexed).",
                         "default": 1,
                     },
+                    "primary_sections": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "section_id values that should introduce this figure in prose "
+                            "(e.g. ['results'] or ['results', 'discussion']). "
+                            "Other sections may cite \\ref only if needed."
+                        ),
+                    },
                 },
-                "required": ["figure_id", "caption", "intent"],
+                "required": ["figure_id", "caption", "intent", "primary_sections"],
                 "additionalProperties": False,
             },
         },
@@ -194,7 +228,7 @@ EDITOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
 
 
 class EditorPlanBuilder:
-    def __init__(self) -> None:
+    def __init__(self, *, trusted_slugs: frozenset[str] | None = None) -> None:
         self.article_title: str = ""
         self.ieee_format: IeeeFormat = "journal"
         self.required_sections: list[str] = []
@@ -202,6 +236,8 @@ class EditorPlanBuilder:
         self.figure_specs: list[FigureSpec] = []
         self.validation_focus: list[str] = []
         self._finalized: bool = False
+        self._trusted_slugs = trusted_slugs or frozenset()
+        self._slug_to_section: dict[str, str] = {}
 
     def is_complete(self) -> bool:
         return (
@@ -223,10 +259,20 @@ class EditorPlanBuilder:
         return {
             "set_document_goal": self._set_document_goal,
             "map_section_sources": self._map_section_sources,
+            "assign_research_slug": self._assign_research_slug,
             "delegate_figure": self._delegate_figure,
             "set_validation_focus": self._set_validation_focus,
             "finalize_editor_plan": self._finalize_editor_plan,
         }
+
+    def _section_by_id(self, section_id: str) -> SectionSpec | None:
+        for spec in self.section_specs:
+            if spec.section_id == section_id:
+                return spec
+        return None
+
+    def _unassigned_slugs(self) -> list[str]:
+        return sorted(self._trusted_slugs - set(self._slug_to_section))
 
     # --- handlers ---
 
@@ -255,16 +301,69 @@ class EditorPlanBuilder:
     ) -> dict[str, str]:
         if not section_id or not heading:
             return {"status": "error", "message": "section_id and heading are required."}
+        if self._section_by_id(section_id) is not None:
+            return {
+                "status": "error",
+                "message": f"Section {section_id!r} already mapped. Use assign_research_slug to add slugs.",
+            }
+        slugs = list(research_slugs or [])
+        for slug in slugs:
+            if self._trusted_slugs and slug not in self._trusted_slugs:
+                return {
+                    "status": "error",
+                    "message": f"Unknown or untrusted slug: {slug}",
+                }
+            if slug in self._slug_to_section:
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Slug {slug!r} already assigned to section "
+                        f"{self._slug_to_section[slug]!r}. Each slug → one section only."
+                    ),
+                }
+        for slug in slugs:
+            self._slug_to_section[slug] = section_id
         spec = SectionSpec(
             section_id=section_id,
             heading=heading,
             order=order,
-            research_slugs=list(research_slugs or []),
+            research_slugs=slugs,
             manuscript_parts=list(manuscript_parts or []),
             notes=notes,
         )
         self.section_specs.append(spec)
         return {"status": "ok", "message": f"Section '{heading}' mapped (order {order})."}
+
+    def _assign_research_slug(
+        self,
+        *,
+        section_id: str,
+        slug: str,
+        **_: Any,
+    ) -> dict[str, str]:
+        if not section_id or not slug:
+            return {"status": "error", "message": "section_id and slug are required."}
+        if self._trusted_slugs and slug not in self._trusted_slugs:
+            return {"status": "error", "message": f"Unknown or untrusted slug: {slug}"}
+        if slug in self._slug_to_section:
+            return {
+                "status": "error",
+                "message": (
+                    f"Slug {slug!r} already assigned to {self._slug_to_section[slug]!r}."
+                ),
+            }
+        spec = self._section_by_id(section_id)
+        if spec is None:
+            return {
+                "status": "error",
+                "message": f"Unknown section_id {section_id!r}. Call map_section_sources first.",
+            }
+        spec.research_slugs.append(slug)
+        self._slug_to_section[slug] = section_id
+        return {
+            "status": "ok",
+            "message": f"Assigned {slug!r} → {section_id}.",
+        }
 
     def _delegate_figure(
         self,
@@ -275,9 +374,17 @@ class EditorPlanBuilder:
         data_hints: list[str] | None = None,
         reuse_path: str = "",
         order: int = 1,
+        primary_sections: list[str] | None = None,
+        **__: Any,
     ) -> dict[str, str]:
         if not figure_id:
             return {"status": "error", "message": "figure_id is required."}
+        primaries = list(primary_sections or [])
+        if not primaries:
+            return {
+                "status": "error",
+                "message": "primary_sections is required (non-empty list of section_id values).",
+            }
         spec = FigureSpec(
             figure_id=figure_id,
             caption=caption,
@@ -285,6 +392,7 @@ class EditorPlanBuilder:
             data_hints=list(data_hints or []),
             reuse_path=reuse_path,
             order=order,
+            primary_sections=primaries,
         )
         self.figure_specs.append(spec)
         return {"status": "ok", "message": f"Figure '{figure_id}' registered."}
@@ -304,6 +412,16 @@ class EditorPlanBuilder:
             return {"status": "error", "message": "Call set_document_goal first."}
         if not self.section_specs:
             return {"status": "error", "message": "Map at least one section before finalizing."}
+        missing = self._unassigned_slugs()
+        if missing:
+            return {
+                "status": "error",
+                "message": (
+                    "Unassigned trusted slugs: "
+                    + ", ".join(missing)
+                    + ". Call assign_research_slug once per slug, then finalize again."
+                ),
+            }
         self._finalized = True
         return {
             "status": "ok",

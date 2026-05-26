@@ -186,32 +186,48 @@ class EditorContext:
         return None
 
     def to_orchestrator_block(self) -> str:
-        """Compact context string passed to the editor orchestrator."""
+        """Compact context for the editor orchestrator (supervisor), with research catalog."""
+        from .plan_validate import format_research_index_excerpt
+
         lines: list[str] = []
         lines.append(f"Title: {self.title}")
         lines.append(f"Authors: {', '.join(a.get('name', '') for a in self.authors)}")
         lines.append(f"Target journal: {self.target_journal}")
         lines.append(f"IEEE format: {self.ieee_format}")
         lines.append("")
-        lines.append("## Manuscript summary")
+        lines.append("## Manuscript summary (from Joiner, step 04)")
         lines.append(self.manuscript.summary[:1200])
         lines.append("")
         lines.append("## Key quantitative claims")
         for claim in self.manuscript.key_claims[:12]:
             lines.append(f"  - {claim}")
         lines.append("")
-        lines.append("## Mismatch flags (figure–text issues)")
-        for flag in self.manuscript.mismatch_flags:
-            img = flag.get("image_path", "")
-            issue = flag.get("issue", "")
-            sev = flag.get("severity", "note")
-            lines.append(f"  - [{sev}] {img}: {issue}")
+        if self.manuscript.mismatch_flags:
+            lines.append("## Mismatch flags (figure–text issues)")
+            for flag in self.manuscript.mismatch_flags:
+                img = flag.get("image_path", "")
+                issue = flag.get("issue", "")
+                sev = flag.get("severity", "note")
+                lines.append(f"  - [{sev}] {img}: {issue}")
+            lines.append("")
+        lines.append("## Research index (catalog — read before assigning slugs)")
+        lines.append(format_research_index_excerpt(self.research_index_md))
         lines.append("")
-        lines.append("## Trusted research artifacts")
+        lines.append("## Research catalog (trusted tasks — assign EACH slug to ONE section)")
+        lines.append(
+            "Read summary excerpts below (not just slug names). "
+            "Every trusted slug must appear in exactly one map_section_sources call."
+        )
         for art in self.trusted_artifacts:
-            lines.append(f"  [{art.verdict.upper()}] {art.slug}")
-            lines.append(f"    task: {art.task[:100]}")
-        lines.append("")
+            excerpt = art.short_summary(350).replace("\n", " ")
+            lines.append(f"  slug: {art.slug}")
+            lines.append(f"    agent: {art.agent_id}  verdict: {art.verdict.upper()}")
+            lines.append(f"    task: {art.task[:200]}")
+            lines.append(f"    summary_excerpt: {excerpt}")
+            lines.append("")
+        if not self.trusted_artifacts:
+            lines.append("  (no trusted research artifacts)")
+            lines.append("")
         lines.append("## Images available for reuse_path (usable only — do NOT use excluded paths)")
         usable = self.manuscript.usable_images()
         for img in usable:

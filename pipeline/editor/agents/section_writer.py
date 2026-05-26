@@ -33,7 +33,7 @@ def _build_section_payload(
             research_summaries.append({
                 "slug": slug,
                 "task": artifact.task[:120],
-                "summary": artifact.short_summary(600),
+                "summary": artifact.short_summary(1200),
             })
 
     # --- collect manuscript content for mapped parts ---
@@ -179,18 +179,22 @@ class SectionCoordinator:
     def __init__(self, writer: SectionWriterAgent) -> None:
         self._writer = writer
 
+    @staticmethod
+    def _figures_for_section(spec: SectionSpec, plan: EditorPlan) -> list[dict[str, str]]:
+        """Figures this section may introduce — only explicit primary_sections matches."""
+        return [
+            {"figure_id": f.figure_id, "caption": f.caption[:80]}
+            for f in plan.figures
+            if spec.section_id in f.primary_sections
+        ]
+
     async def write_all(
         self,
         plan: EditorPlan,
         context: EditorContext,
     ) -> list[SectionDraft]:
-        # Inject figure IDs so every section writer knows valid cross-reference IDs
-        fig_index = [
-            {"figure_id": f.figure_id, "caption": f.caption[:80]}
-            for f in plan.figures
-        ]
         for spec in plan.sections:
-            spec.available_figure_ids = fig_index
+            spec.available_figure_ids = self._figures_for_section(spec, plan)
 
         # Stagger launches slightly to reduce simultaneous API bursts
         import asyncio as _asyncio

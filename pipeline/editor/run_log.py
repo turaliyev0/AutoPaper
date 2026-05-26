@@ -52,6 +52,7 @@ class RunLog:
         self._total_steps = 7
         self._start_time = time.monotonic()
         self._fh = self._path.open("w", encoding="utf-8")
+        self._closed = False
         self._start_iso = _now_iso()
 
     # ------------------------------------------------------------------
@@ -59,6 +60,8 @@ class RunLog:
     # ------------------------------------------------------------------
 
     def _emit(self, line: str) -> None:
+        if self._closed:
+            return
         self._fh.write(line + "\n")
         self._fh.flush()
         if self._verbose:
@@ -206,6 +209,7 @@ class RunLog:
             for e in result.errors:
                 self._emit(f"    - {e[:100]}")
         self._emit(_SEP)
+        self._closed = True
         self._fh.close()
         if self._verbose:
             print(f"\n[log] Full run log written to: {self._path}", file=sys.stderr, flush=True)

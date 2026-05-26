@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Callable
@@ -21,7 +22,7 @@ from autopaper.llm.trace import (
 
 from ..config import Settings
 from ..utils import extract_json_object
-from .base import llm_retry
+from .base import llm_retry, retry_wait_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -150,18 +151,23 @@ class OpenAIClient:
         tools: list[dict[str, Any]],
         tool_handlers: dict[str, Callable[..., dict[str, str]]],
         max_turns: int = 12,
-    ) -> None:
+        input_items: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Run OpenAI function calling until the model stops calling tools or ``max_turns``.
 
         Uses the **Responses API** (``client.responses.create``), not Chat Completions.
 
         Mutates state only via ``tool_handlers`` (e.g. :class:`OrchestratorPlanBuilder`).
+
+        Returns ``input_items`` so callers can continue the session on validation retry.
         """
         responses_tools = _orchestrator_tools_for_responses(tools)
-        input_items: list[dict[str, Any]] = [
-            {"type": "message", "role": "user", "content": user},
-        ]
+        if input_items is None:
+            input_items = [{"type": "message", "role": "user", "content": user}]
+        else:
+            input_items = list(input_items)
+            input_items.append({"type": "message", "role": "user", "content": user})
 
         if llm_trace_enabled():
             log_openai_tool_session_start(
@@ -170,19 +176,35 @@ class OpenAIClient:
             )
 
         for turn in range(max_turns):
-            try:
-                response = await self._client.responses.create(
-                    model=self._model,
-                    instructions=system,
-                    input=input_items,
-                    tools=responses_tools,
-                    tool_choice="auto",
-                    temperature=0.2,
-                    store=False,
-                )
-            except (RateLimitError, APITimeoutError, APIConnectionError) as exc:
-                logger.warning("OpenAI API error (tool turn %d): %s", turn + 1, exc)
-                raise TimeoutError(str(exc)) from exc
+            response = None
+            last_exc: BaseException | None = None
+            for api_attempt in range(6):
+                try:
+                    response = await self._client.responses.create(
+                        model=self._model,
+                        instructions=system,
+                        input=input_items,
+                        tools=responses_tools,
+                        tool_choice="auto",
+                        temperature=0.2,
+                        store=False,
+                    )
+                    break
+                except RateLimitError as exc:
+                    last_exc = exc
+                    wait_s = retry_wait_seconds(exc) or 5.0
+                    logger.warning(
+                        "OpenAI rate limit (tool turn %d, retry %d): sleep %.1fs",
+                        turn + 1,
+                        api_attempt + 1,
+                        wait_s,
+                    )
+                    await asyncio.sleep(wait_s)
+                except (APITimeoutError, APIConnectionError) as exc:
+                    logger.warning("OpenAI API error (tool turn %d): %s", turn + 1, exc)
+                    raise TimeoutError(str(exc)) from exc
+            if response is None:
+                raise TimeoutError(str(last_exc) if last_exc else "OpenAI API failed")
 
             if getattr(response, "error", None) is not None:
                 err = response.error
@@ -204,7 +226,7 @@ class OpenAIClient:
                 final = getattr(response, "output_text", "") or ""
                 if llm_trace_enabled():
                     log_openai_tool_done(turns=turn + 1, final_text=str(final))
-                break
+                return input_items
 
             for call in function_calls:
                 name = getattr(call, "name", None) or ""
@@ -235,5 +257,4 @@ class OpenAIClient:
                 logger.debug("Tool %s → %s", name, payload.get("status"))
                 if llm_trace_enabled():
                     log_openai_tool_call(name, raw_args, payload)
-        else:
-            raise RuntimeError(f"Orchestrator tool loop exceeded {max_turns} turns.")
+        raise RuntimeError(f"Orchestrator tool loop exceeded {max_turns} turns.")
