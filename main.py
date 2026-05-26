@@ -1,4 +1,4 @@
-"""AutoPaper — backend service.
+﻿"""AutoPaper — backend service.
 
 Full REST + SSE API that drives the AutoPaper pipeline.
 Swagger UI:   http://localhost:8000/docs
@@ -104,7 +104,7 @@ class LogResponse(BaseModel):
     model_config = {"json_schema_extra": {"example": {
         "lines": [
             "[AutoPaper] Starting pipeline for: My Paper",
-            "[Step 1] paper_input: ingesting files…",
+            "[Step 1] pipeline.input: ingesting files…",
             "[Step 2] research: launching orchestrator…",
             "[AutoPaper] ✓ Pipeline completed successfully.",
         ]
@@ -152,9 +152,9 @@ app = FastAPI(
         "Converts raw research data (description, methods, images) into a "
         "peer-review-ready IEEE manuscript using a multi-agent AI pipeline.\n\n"
         "**Pipeline stages** (all run server-side):\n"
-        "1. `paper_input` — ingest & clean uploaded files\n"
-        "2. `research` — AI orchestrator + grounded search agents\n"
-        "3. `editor` — IEEE-compliant LaTeX authoring + PDF compile\n\n"
+        "1. `pipeline.input` — ingest & clean uploaded files\n"
+        "2. `pipeline.research` — AI orchestrator + grounded search agents\n"
+        "3. `pipeline.editor` — IEEE-compliant LaTeX authoring + PDF compile\n\n"
         "Monitor progress in real-time via the **SSE stream** (`/api/runs/{id}/stream`)."
     ),
     contact={"name": "AutoPaper"},
@@ -352,7 +352,7 @@ async def stream_log(run_id: str) -> StreamingResponse:
     description=(
         "Upload your research data to kick off the full AutoPaper pipeline.\n\n"
         "The pipeline runs asynchronously in the background:\n"
-        "1. **paper_input** — parses and cleans your text and images\n"
+        "1. **pipeline.input** — parses and cleans your text and images\n"
         "2. **research** — multi-agent grounded literature search\n"
         "3. **editor** — IEEE-compliant LaTeX authoring + PDF compilation\n\n"
         "Poll `GET /api/runs/{run_id}` or subscribe to `GET /api/runs/{run_id}/stream` "

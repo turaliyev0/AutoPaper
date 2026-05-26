@@ -1,4 +1,4 @@
-# AutoPaper
+﻿# AutoPaper
 
 Converts raw research data into a peer-review-ready IEEE manuscript using a multi-agent AI pipeline.
 
@@ -21,9 +21,10 @@ AutoPaper/
 │   ├── .env              # VITE_API_URL=http://localhost:8000
 │   └── .env.example
 │
-├── paper_input/          # Stage 1 — ingest, clean, image analysis
-├── research/             # Stage 2 — AI orchestrator + grounded search
-├── editor/               # Stage 3 — IEEE LaTeX authoring + PDF
+├── pipeline/             # All pipeline stages
+│   ├── input/            # Stage 1 — ingest, clean, image analysis
+│   ├── research/         # Stage 2 — AI orchestrator + grounded search
+│   └── editor/           # Stage 3 — IEEE LaTeX authoring + PDF
 │
 ├── src/autopaper/main/   # CLI entry point (`autopaper` command)
 ├── output/               # Generated manuscripts (gitignored)
@@ -36,9 +37,9 @@ AutoPaper/
 
 | # | Stage | Output |
 |---|-------|--------|
-| 1 | `paper_input` — parse text, vision-describe images, join | `01–04_*.json` |
-| 2 | `research` — orchestrator plans tasks → parallel search → validate → index | `05–08_*.json/md` |
-| 3 | `editor` — plan sections, write LaTeX, generate figures, validate, compile PDF | `09–13_*/` |
+| 1 | `pipeline.input` — parse text, vision-describe images, join | `01–04_*.json` |
+| 2 | `pipeline.research` — orchestrator plans tasks → parallel search → validate → index | `05–08_*.json/md` |
+| 3 | `pipeline.editor` — plan sections, write LaTeX, generate figures, validate, compile PDF | `09–13_*/` |
 
 ---
 
@@ -77,7 +78,7 @@ Do **not** use `uvicorn main:app --reload` alone — the pipeline writes files u
 python run_dev.py
 ```
 
-`run_dev.py` sets `reload_dirs` to `backend/`, `src/`, `editor/`, `research/`, and `paper_input/` only — **not** `output/`. Figure generation writes `.py` files under `output/execution_NNN/11_figures/`; watching that tree with plain `--reload` kills long runs.
+`run_dev.py` sets `reload_dirs` to `backend/`, `src/`, and `pipeline/` only — **not** `output/`. Figure generation writes `.py` files under `output/execution_NNN/11_figures/`; watching that tree with plain `--reload` kills long runs.
 
 Run metadata and logs are persisted under `output/_runs/{run_id}.json` and `.log` so `GET /api/runs/{id}` survives restarts.
 

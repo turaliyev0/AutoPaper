@@ -28,15 +28,16 @@ dev = [
 
 [project.scripts]
 autopaper = "autopaper.main.app:main"
-research = "research.main:main"
+research = "pipeline.research.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["autopaper*", "paper_input*", "research*"]
+include = ["autopaper*", "pipeline*"]
 
 [tool.setuptools.package-data]
-paper_input = ["prompts/**/*.md"]
-research = ["prompts/**/*.md"]
+"pipeline.input" = ["prompts/**/*.md"]
+"pipeline.research" = ["prompts/**/*.md"]
+"pipeline.editor" = ["prompts/**/*.md"]
 autopaper = ["flow/**/*.md"]
 
 [tool.ruff]

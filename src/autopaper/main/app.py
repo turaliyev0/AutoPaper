@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -6,13 +6,13 @@ import sys
 from importlib import import_module
 from pathlib import Path
 
-from paper_input.image_validation import (
+from pipeline.input.image_validation import (
     ImageValidationError,
     MismatchAbortError,
     MismatchPolicy,
 )
-from paper_input.ingest import run_ingest_pipeline
-from paper_input.research_continue import ResearchContinuation
+from pipeline.input.ingest import run_ingest_pipeline
+from pipeline.input.research_continue import ResearchContinuation
 
 _builtin_input = import_module("builtins").input
 
@@ -25,8 +25,8 @@ def _run_editor(
     resume: bool = False,
 ) -> None:
     """Run the editor pipeline on a completed execution directory."""
-    from editor.pipeline import run_editor_pipeline
-    from editor.schemas import IeeeFormat
+    from pipeline.editor.pipeline import run_editor_pipeline
+    from pipeline.editor.schemas import IeeeFormat
 
     fmt: IeeeFormat = "conference" if ieee_format == "conference" else "journal"
     if not verbose_log:
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
         description=(
             "Ingest paper folder → output/execution_NNN/ (steps 01–04), then by default "
             "research orchestrator plan (05). Requires GOOGLE_API_KEY and OPENAI_API_KEY for full research. "
-            "Flow: src/autopaper/flow/paper_input/README.md"
+            "See pipeline/input/README.md"
         )
     )
     parser.add_argument(

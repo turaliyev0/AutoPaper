@@ -10,9 +10,7 @@ import uvicorn
 _RELOAD_DIRS = [
     "backend",
     "src",
-    "editor",
-    "research",
-    "paper_input",
+    "pipeline",
 ]
 
 if __name__ == "__main__":
