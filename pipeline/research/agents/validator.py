@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from pathlib import Path
 
 from ..clients.gemini_client import validator_client
 from ..config import Settings
+from ..task_kinds import TaskKind, classify_task, provenance_for_kind
 from ..prompts.loader import load_research_validator_instruction
 from ..research_storage import load_research_manifest, load_task_result, task_artifact_slug
 from ..schemas import (
@@ -31,6 +33,52 @@ _MISMATCH_PHRASE = "grounding in literature is optional"
 def _is_mismatch_review(task: str) -> bool:
     """Return True when the task is a figure-text mismatch review that does not require sources."""
     return _MISMATCH_PHRASE in task.lower()
+
+
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _fallback_overview(result: GatheredTaskResult, *, max_sentences: int = 8) -> str:
+    """Cheap overview when the validator LLM omits the field."""
+    text = (result.summary or "").strip()
+    if not text:
+        return "This research task did not produce a usable summary."
+    sentences = _split_sentences(text)
+    if not sentences:
+        return text[:900]
+    picked = sentences[:max_sentences]
+    return " ".join(picked)
+
+
+def _coerce_overview(raw: str, result: GatheredTaskResult) -> str:
+    """Normalize to 5–10 sentences; fall back to summary-derived text if needed."""
+    overview = str(raw or "").strip()
+    if not overview:
+        return _fallback_overview(result)
+
+    sentences = _split_sentences(overview)
+    if len(sentences) < 5:
+        fb = _fallback_overview(result)
+        fb_sentences = _split_sentences(fb)
+        merged: list[str] = []
+        seen: set[str] = set()
+        for s in sentences + fb_sentences:
+            key = s.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(s)
+            if len(merged) >= 10:
+                break
+        if len(merged) < 5:
+            merged = (_split_sentences(fb) or [fb])[:10]
+        sentences = merged
+
+    if len(sentences) > 10:
+        sentences = sentences[:10]
+    return " ".join(sentences)
 
 
 def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[str]]:
@@ -192,6 +240,22 @@ class ResearchValidator:
         issues_raw = data.get("issues") or baseline["issues"]
         issues = [str(i).strip() for i in issues_raw if str(i).strip()] if isinstance(issues_raw, list) else []
 
+        overview = _coerce_overview(str(data.get("overview") or ""), result)
+
+        task_kind: TaskKind = classify_task(result.task)
+        data_provenance = str(data.get("data_provenance") or "").lower()
+        if data_provenance not in ("literature_only", "manuscript_only", "mixed", "unknown"):
+            data_provenance = provenance_for_kind(task_kind)
+        # Never allow LLM to mark benchmark tasks as own-study data.
+        if task_kind == "literature_benchmark" and data_provenance != "literature_only":
+            data_provenance = "literature_only"
+            issues.append(
+                "Quantitative benchmark task must be literature_only "
+                "(values are from prior studies, not this experiment)."
+            )
+            if verdict == "pass" and coverage == "sufficient":
+                verdict = "warn"
+
         return ValidatedTaskResult(
             slug=slug,
             research_filename=research_filename,
@@ -204,6 +268,9 @@ class ResearchValidator:
             gaps=gaps,
             issues=issues,
             source_notes=str(data.get("source_notes") or baseline["source_notes"]).strip(),
+            task_kind=task_kind,
+            data_provenance=data_provenance,  # type: ignore[arg-type]
+            overview=overview,
         )
 
     async def validate_all(

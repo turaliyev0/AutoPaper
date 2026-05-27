@@ -10,6 +10,7 @@ from pipeline.research.clients.openai_client import OpenAIClient
 
 from ..config import EditorSettings
 from ..context import EditorContext
+from ..plan_filters import filter_editor_plan_figures
 from ..plan_validate import collect_plan_validation_errors
 from ..prompts.loader import load_editor_orchestrator_instruction
 from ..schemas import EditorPlan
@@ -38,12 +39,12 @@ class EditorOrchestratorAgent:
         user_prompt = (
             "Create an IEEE manuscript editing plan from the following context.\n\n"
             "You are the process supervisor: use the Research index and Research catalog "
-            "(summary excerpts) to assign each trusted slug to exactly ONE section.\n\n"
+            "(validator overviews) to assign each trusted slug to exactly ONE section.\n\n"
             "Use the tools in this order:\n"
             "1. set_document_goal — title, format, required sections\n"
             "2. map_section_sources — once per section (manuscript_parts; slugs optional here)\n"
             "3. assign_research_slug — **once per trusted slug** in the catalog\n"
-            "4. delegate_figure — primary_sections required on each figure\n"
+            "4. delegate_figure — only if usable images exist; primary_sections required; never reuse excluded paths\n"
             "5. set_validation_focus\n"
             "6. finalize_editor_plan — only when every slug is assigned\n\n"
             "--- CONTEXT ---\n"
@@ -52,6 +53,7 @@ class EditorOrchestratorAgent:
 
         builder = EditorPlanBuilder(
             trusted_slugs=frozenset(a.slug for a in context.trusted_artifacts),
+            slug_kinds={a.slug: a.task_kind for a in context.trusted_artifacts},
         )
         input_items: list[dict] | None = None
         user_msg = user_prompt
@@ -93,7 +95,7 @@ class EditorOrchestratorAgent:
                 )
 
             try:
-                plan = builder.to_plan()
+                plan = filter_editor_plan_figures(builder.to_plan(), context)
                 EditorPlan.model_validate(plan.model_dump())
                 plan_errors = collect_plan_validation_errors(plan, context)
                 if plan_errors:

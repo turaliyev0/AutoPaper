@@ -27,6 +27,7 @@ Read the `task` field of the input.
   - Set `coverage: "sufficient"` if the mismatch and fix are clearly described, otherwise `"partial"`.
   - Set `gaps: []` (no literature gaps apply to figure-text reviews).
   - Set `source_notes` to: "Figure-text mismatch task — no literature sources required per task instructions. DOIs unverified — manual spot-check recommended for any source used in a manuscript."
+  - Set `overview` to 5–10 sentences describing the mismatch, affected figure/text, and recommended fix.
   - Produce the JSON and stop. Do not proceed to Steps 1–6.
 
 - **NO →** Continue to Step 1.
@@ -83,6 +84,32 @@ Do **not** list gaps that are out of scope of the subtask, and do **not** invent
 
 `coverage` is independent of `source_quality`. A task can have `source_quality: "clear"` but `coverage: "partial"` (good but too narrow), or `source_quality: "weak"` but `coverage: "sufficient"` (rare; only if the subtask is naturally light on citable sources).
 
+## Step 7 — Data provenance (required)
+
+Set `data_provenance` for how numbers in the output relate to **this manuscript's experiment**:
+
+- `literature_only` — values are from cited prior studies / benchmarks only (typical for literature review, comparable studies, quantitative benchmark tasks).
+- `manuscript_only` — based on manuscript/figure inspection only (figure–text mismatch tasks).
+- `mixed` — combines manuscript design context with external literature (methods critique, gap-fill).
+- `unknown` — only if truly unclear.
+
+**Rules:**
+- Quantitative **benchmark** tasks must be `literature_only`. If the summary presents benchmark numbers as if they were measured in this study, add an issue and set `verdict` to `warn` or `fail`.
+- Do not upgrade `literature_only` tasks to imply original experimental results.
+
+## Step 8 — Editor overview (required)
+
+Write an `overview` field: **5–10 complete sentences** in plain English that a manuscript editor can use to decide where this research belongs.
+
+The overview must:
+- State what question the subtask answered and the main findings.
+- Mention the most important quantitative or comparative points when present in the output.
+- Note limitations, gaps, or caveats briefly when `coverage` is `partial` or `insufficient`, or when `issues` is non-empty.
+- Stay neutral and factual — do **not** invent sources, numbers, or claims not present in `summary` / `key_points`.
+- **Not** repeat the verdict labels (`pass`/`warn`/`fail`) as the main content.
+
+This overview is for downstream **editor orchestrator** slug assignment; make it information-dense, not promotional.
+
 ---
 
 ## Rules
@@ -114,6 +141,8 @@ Do **not** list gaps that are out of scope of the subtask, and do **not** invent
   "coverage": "sufficient",
   "gaps": [],
   "issues": [],
-  "source_notes": "One sentence on how well sources support both summary and key_points. DOIs unverified — manual spot-check recommended for any source used in a manuscript."
+  "source_notes": "One sentence on how well sources support both summary and key_points. DOIs unverified — manual spot-check recommended for any source used in a manuscript.",
+  "data_provenance": "literature_only",
+  "overview": "Five to ten sentences summarizing what this task found, key evidence, and any caveats. Written for an editor assigning research slugs to manuscript sections."
 }
 ```

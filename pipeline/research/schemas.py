@@ -125,6 +125,20 @@ class ValidatedTaskResult(BaseModel):
     gaps: list[str] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
     source_notes: str = ""
+    task_kind: str = "unknown"
+    data_provenance: Literal[
+        "literature_only",
+        "manuscript_only",
+        "mixed",
+        "unknown",
+    ] = "unknown"
+    overview: str = Field(
+        default="",
+        description=(
+            "5–10 sentence neutral overview of what this research task found, "
+            "for downstream editor orchestrator slug assignment."
+        ),
+    )
     validated_at_utc: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )

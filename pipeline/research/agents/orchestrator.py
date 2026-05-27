@@ -127,6 +127,7 @@ class OrchestratorAgent:
                 "gaps": v.gaps,
                 "issues": v.issues,
                 "source_notes": v.source_notes,
+                "overview": v.overview,
             }
             for v in validated.results
         ]

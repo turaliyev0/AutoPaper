@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from pipeline.research.task_kinds import (
+    RESULTS_FORBIDDEN_KINDS,
+    section_allows_kind,
+)
+
 from ..schemas import EditorPlan, FigureSpec, IeeeFormat, SectionSpec
 
 # ---------------------------------------------------------------------------
@@ -228,7 +233,12 @@ EDITOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
 
 
 class EditorPlanBuilder:
-    def __init__(self, *, trusted_slugs: frozenset[str] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        trusted_slugs: frozenset[str] | None = None,
+        slug_kinds: dict[str, str] | None = None,
+    ) -> None:
         self.article_title: str = ""
         self.ieee_format: IeeeFormat = "journal"
         self.required_sections: list[str] = []
@@ -237,7 +247,22 @@ class EditorPlanBuilder:
         self.validation_focus: list[str] = []
         self._finalized: bool = False
         self._trusted_slugs = trusted_slugs or frozenset()
+        self._slug_kinds = slug_kinds or {}
         self._slug_to_section: dict[str, str] = {}
+
+    def _slug_section_error(self, slug: str, section_id: str) -> str | None:
+        kind = self._slug_kinds.get(slug, "unknown")
+        if section_id == "results" and kind in RESULTS_FORBIDDEN_KINDS:
+            return (
+                f"Slug {slug!r} (task_kind={kind}) cannot feed Results — "
+                "literature/benchmark data is not this study's measured outcome."
+            )
+        if not section_allows_kind(section_id, kind):  # type: ignore[arg-type]
+            return (
+                f"Slug {slug!r} (task_kind={kind}) cannot be assigned to section "
+                f"{section_id!r}. Use allowed_sections from the catalog."
+            )
+        return None
 
     def is_complete(self) -> bool:
         return (
@@ -308,6 +333,9 @@ class EditorPlanBuilder:
             }
         slugs = list(research_slugs or [])
         for slug in slugs:
+            sec_err = self._slug_section_error(slug, section_id)
+            if sec_err:
+                return {"status": "error", "message": sec_err}
             if self._trusted_slugs and slug not in self._trusted_slugs:
                 return {
                     "status": "error",
@@ -345,6 +373,9 @@ class EditorPlanBuilder:
             return {"status": "error", "message": "section_id and slug are required."}
         if self._trusted_slugs and slug not in self._trusted_slugs:
             return {"status": "error", "message": f"Unknown or untrusted slug: {slug}"}
+        sec_err = self._slug_section_error(slug, section_id)
+        if sec_err:
+            return {"status": "error", "message": sec_err}
         if slug in self._slug_to_section:
             return {
                 "status": "error",

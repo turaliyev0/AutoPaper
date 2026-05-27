@@ -33,7 +33,7 @@ class EditorSettings(BaseSettings):
         default=_DEFAULT_OPENAI, validation_alias="EDITOR_ORCHESTRATOR_MODEL"
     )
 
-    # --- section writer (Gemini; only orchestrator uses GPT) ---
+    # --- section writer (Gemini) ---
     editor_section_writer_model: str = Field(
         default=_DEFAULT_GEMINI, validation_alias="EDITOR_SECTION_WRITER_MODEL"
     )

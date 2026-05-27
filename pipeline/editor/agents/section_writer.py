@@ -11,6 +11,8 @@ from typing import Any
 from pipeline.research.clients.gemini_client import GeminiClient
 from pipeline.research.utils import extract_json_object
 
+from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
+
 from ..context import EditorContext
 from ..prompts.loader import load_section_writer_instruction
 from ..schemas import CitationEntry, EditorPlan, SectionDraft, SectionSpec
@@ -29,12 +31,22 @@ def _build_section_payload(
     research_summaries: list[dict[str, str]] = []
     for slug in spec.research_slugs:
         artifact = context.artifact_by_slug(slug)
-        if artifact and artifact.is_trusted:
-            research_summaries.append({
-                "slug": slug,
-                "task": artifact.task[:120],
-                "summary": artifact.short_summary(1200),
-            })
+        if not artifact or not artifact.is_trusted:
+            continue
+        if spec.section_id == "results" and artifact.task_kind in RESULTS_FORBIDDEN_KINDS:
+            continue
+        entry: dict[str, str] = {
+            "slug": slug,
+            "task": artifact.task[:120],
+            "summary": artifact.short_summary(1200),
+            "task_kind": artifact.task_kind,
+            "data_provenance": artifact.data_provenance,
+        }
+        if artifact.data_provenance == "literature_only":
+            entry["usage_rule"] = (
+                "LITERATURE ONLY — cite with \\cite{{}}; never present as this study's data."
+            )
+        research_summaries.append(entry)
 
     # --- collect manuscript content for mapped parts ---
     manuscript_content: dict[str, Any] = {}

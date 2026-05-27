@@ -23,7 +23,8 @@ class ResearchArtifact:
 
     __slots__ = (
         "slug", "task", "agent_id", "summary", "sources_raw",
-        "verdict", "validation_issues",
+        "verdict", "validation_issues", "overview",
+        "task_kind", "data_provenance",
     )
 
     def __init__(
@@ -35,6 +36,9 @@ class ResearchArtifact:
         sources_raw: list[dict[str, Any]],
         verdict: str,
         validation_issues: list[str],
+        overview: str = "",
+        task_kind: str = "unknown",
+        data_provenance: str = "unknown",
     ) -> None:
         self.slug = slug
         self.task = task
@@ -43,6 +47,9 @@ class ResearchArtifact:
         self.sources_raw = sources_raw
         self.verdict = verdict
         self.validation_issues = validation_issues
+        self.overview = overview.strip()
+        self.task_kind = task_kind
+        self.data_provenance = data_provenance
 
     @property
     def is_trusted(self) -> bool:
@@ -50,6 +57,18 @@ class ResearchArtifact:
 
     def short_summary(self, limit: int = 500) -> str:
         return self.summary[:limit]
+
+    def orchestrator_excerpt(self, *, fallback_limit: int = 500) -> str:
+        """Validator overview for slug assignment; falls back to truncated summary."""
+        if self.overview:
+            return self.overview.replace("\n", " ").strip()
+        return self.short_summary(fallback_limit)
+
+    def allowed_section_ids(self) -> list[str]:
+        from pipeline.research.task_kinds import ALLOWED_SECTIONS, TaskKind
+
+        kind: TaskKind = self.task_kind if self.task_kind in ALLOWED_SECTIONS else "unknown"  # type: ignore[assignment]
+        return sorted(ALLOWED_SECTIONS.get(kind, ALLOWED_SECTIONS["unknown"]))
 
 
 class ManuscriptData:
@@ -215,15 +234,20 @@ class EditorContext:
         lines.append("")
         lines.append("## Research catalog (trusted tasks — assign EACH slug to ONE section)")
         lines.append(
-            "Read summary excerpts below (not just slug names). "
-            "Every trusted slug must appear in exactly one map_section_sources call."
+            "Read validator overview below (not just slug names). "
+            "Every trusted slug must be assigned via assign_research_slug exactly once."
         )
+        from pipeline.research.task_kinds import kind_label
+
         for art in self.trusted_artifacts:
-            excerpt = art.short_summary(350).replace("\n", " ")
+            excerpt = art.orchestrator_excerpt().replace("\n", " ")
             lines.append(f"  slug: {art.slug}")
             lines.append(f"    agent: {art.agent_id}  verdict: {art.verdict.upper()}")
+            lines.append(f"    task_kind: {art.task_kind} ({kind_label(art.task_kind)})")  # type: ignore[arg-type]
+            lines.append(f"    data_provenance: {art.data_provenance}")
+            lines.append(f"    allowed_sections: {', '.join(art.allowed_section_ids())}")
             lines.append(f"    task: {art.task[:200]}")
-            lines.append(f"    summary_excerpt: {excerpt}")
+            lines.append(f"    overview: {excerpt}")
             lines.append("")
         if not self.trusted_artifacts:
             lines.append("  (no trusted research artifacts)")
@@ -316,6 +340,17 @@ def _load_research_artifacts(
         val = validation_map.get(slug) or {}
         verdict = str(val.get("verdict") or "unknown")
         issues = [str(i) for i in (val.get("issues") or [])]
+        overview = str(val.get("overview") or "").strip()
+        task_kind = str(val.get("task_kind") or "").strip()
+        data_provenance = str(val.get("data_provenance") or "").strip()
+        if not task_kind:
+            from pipeline.research.task_kinds import classify_task
+
+            task_kind = classify_task(task)
+        if not data_provenance:
+            from pipeline.research.task_kinds import provenance_for_kind
+
+            data_provenance = provenance_for_kind(task_kind)  # type: ignore[arg-type]
 
         artifacts.append(ResearchArtifact(
             slug=slug,
@@ -325,6 +360,9 @@ def _load_research_artifacts(
             sources_raw=sources_raw,
             verdict=verdict,
             validation_issues=issues,
+            overview=overview,
+            task_kind=task_kind,
+            data_provenance=data_provenance,
         ))
     return artifacts
 

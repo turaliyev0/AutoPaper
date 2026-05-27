@@ -19,6 +19,7 @@ from .assembler import assemble_manuscript
 from .config import EditorSettings, load_editor_settings
 from .context import EditorContext, load_editor_context
 from .plan_filters import filter_editor_plan_figures
+from .integrity_check import validate_manuscript_integrity
 from .plan_validate import validate_editor_plan
 from .run_log import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
@@ -247,22 +248,47 @@ class EditorPipeline:
             else:
                 log.warn("No sections to validate.")
 
+        # ── STEP 5b: Integrity gate ───────────────────────────────────
+        integrity_ok = True
+        with log.step("Manuscript integrity check"):
+            if sections and plan is not None:
+                try:
+                    validate_manuscript_integrity(plan, sections, context)
+                    log.ok("Integrity checks passed")
+                except ValueError as exc:
+                    integrity_ok = False
+                    log.fail(str(exc))
+                    errors.append(str(exc))
+            else:
+                log.warn("Skipping integrity check (no sections or plan).")
+
         # ── STEP 6: Assemble LaTeX ─────────────────────────────────────
         manuscript_tex = ""
         bib_content = ""
         with log.step("Assemble LaTeX (IEEEtran)"):
             print("[STEP] Assembling LaTeX manuscript", flush=True)
-            try:
-                manuscript_tex, bib_content = assemble_manuscript(plan, sections, figures, context)
-                write_manuscript(execution_dir, main_tex=manuscript_tex, references_bib=bib_content)
-                lines = manuscript_tex.count("\n")
-                bib_entries = bib_content.count("@article")
-                log.ok(f"main.tex written ({lines} lines)")
-                log.ok(f"references.bib written ({bib_entries} entries)")
-                log.ok("→ 13_ieee_manuscript/")
-            except Exception as exc:
-                log.fail(f"Assembler failed: {exc}")
-                errors.append(f"Assembler failed: {exc}")
+            if not integrity_ok:
+                log.warn("Skipping assembly — integrity check failed.")
+            elif not sections:
+                log.warn("No sections to assemble.")
+            else:
+                try:
+                    manuscript_tex, bib_content = assemble_manuscript(
+                        plan, sections, figures, context
+                    )
+                    write_manuscript(
+                        execution_dir,
+                        main_tex=manuscript_tex,
+                        references_bib=bib_content,
+                    )
+                    lines = manuscript_tex.count("\n")
+                    bib_entries = bib_content.count("@article")
+                    log.ok(f"main.tex written ({lines} lines)")
+                    log.ok(f"references.bib written ({bib_entries} entries)")
+                    log.ok("→ 13_ieee_manuscript/")
+                except Exception as exc:
+                    log.fail(f"Assembler failed: {exc}")
+                    errors.append(f"Assembler failed: {exc}")
 
         # ── STEP 7: Compile PDF ────────────────────────────────────────
         pdf_path = ""

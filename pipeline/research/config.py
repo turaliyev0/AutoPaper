@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         default="", validation_alias="RESEARCH_OPENAI_SEARCH_API_KEY"
     )
     research_openai_search_model: str = Field(
-        default=_DEFAULT_GEMINI,
+        default=_DEFAULT_OPENAI,
         validation_alias="RESEARCH_OPENAI_SEARCH_MODEL",
     )
 
@@ -142,14 +142,15 @@ class Settings(BaseSettings):
 
     @property
     def openai_search_model(self) -> str:
-        raw = (
+        return (
             self.research_openai_search_model
-            or self.gemini_search_model
+            or _DEFAULT_OPENAI
         ).strip()
-        lower = raw.lower()
-        if lower.startswith("gpt") or lower.startswith("o1") or lower.startswith("o3"):
-            return self.gemini_search_model
-        return raw
+
+    @property
+    def openai_search_uses_openai(self) -> bool:
+        lower = self.openai_search_model.lower()
+        return lower.startswith("gpt") or lower.startswith("o1") or lower.startswith("o3")
 
     @property
     def report_synthesizer_api_key(self) -> str:

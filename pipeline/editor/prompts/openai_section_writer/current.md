@@ -81,7 +81,9 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 - Include all parameters from `experimental_design`.
 
 **Results**
-- Report quantitative values with units.
+- Report **only** quantitative values from `manuscript_content` (`key_claims`, `experimental_design`) — this study's outcomes.
+- **Never** present numbers from `research_summaries` with `data_provenance: literature_only` as if measured here; if you mention literature for comparison, cite with `\\cite{}` and use "prior work" / "reported by" wording.
+- If `research_summaries` is empty for Results, that is expected — do not fill Results from literature.
 - Introduce figures listed in `available_figure_ids` here (first mention + `figures_referenced`).
 - Do **not** reference figures not in `available_figure_ids`.
 

@@ -183,11 +183,11 @@ npm run build
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | ✓ | OpenAI API key (orchestrator + section writer) |
+| `OPENAI_API_KEY` | ✓ | OpenAI API key (research + editor orchestrators) |
 | `GOOGLE_API_KEY` | ✓ | Google / Gemini API key (search, validator, editor) |
 | `EDITOR_IEEE_FORMAT` | | Default output format: `journal` or `conference` |
 | `EDITOR_ORCHESTRATOR_MODEL` | | OpenAI model for editor orchestrator (default: `gpt-4o`) |
-| `EDITOR_SECTION_WRITER_MODEL` | | OpenAI model for section writer (default: `gpt-4o`) |
+| `EDITOR_SECTION_WRITER_MODEL` | | Gemini model for section writer (default: `gemini-2.5-flash`) |
 | `EDITOR_VALIDATOR_MODEL` | | Gemini model for IEEE validator (default: `gemini-2.5-flash`) |
 | `RESEARCH_ORCHESTRATOR_MODEL` | | OpenAI model for research orchestrator (default: `gpt-4o`) |
 | `RESEARCH_GEMINI_SEARCH_MODEL` | | Gemini model for search agent (default: `gemini-2.0-flash`) |

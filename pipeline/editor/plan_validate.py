@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
+
 from .context import EditorContext
 from .schemas import EditorPlan
 
@@ -47,6 +49,36 @@ def collect_plan_validation_errors(
                 f"Figure {fig.figure_id!r} has no primary_sections "
                 "(orchestrator must set this on delegate_figure)"
             )
+
+    slug_kind = {a.slug: a.task_kind for a in context.trusted_artifacts}
+    for spec in plan.sections:
+        if spec.section_id != "results":
+            continue
+        for slug in spec.research_slugs:
+            kind = slug_kind.get(slug, "unknown")
+            if kind in RESULTS_FORBIDDEN_KINDS:
+                errors.append(
+                    f"Results must not include slug {slug!r} (task_kind={kind}). "
+                    "Literature benchmarks belong in Background or Discussion only."
+                )
+
+    usable = context.manuscript.usable_images()
+    if not usable and plan.figures:
+        for fig in plan.figures:
+            if not (fig.reuse_path or "").strip():
+                errors.append(
+                    f"Figure {fig.figure_id!r} has no reuse_path but no usable images exist; "
+                    "omit figures or link a valid manuscript image."
+                )
+
+    if context.manuscript.excluded_images and plan.figures:
+        blocked = context.manuscript.excluded_paths()
+        for fig in plan.figures:
+            reuse = (fig.reuse_path or "").strip()
+            if reuse and reuse in blocked:
+                errors.append(
+                    f"Figure {fig.figure_id!r} must not reuse excluded path {reuse!r}."
+                )
 
     return errors
 

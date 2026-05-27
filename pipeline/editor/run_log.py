@@ -7,7 +7,7 @@ directory *and* echoes every line to stderr so you can watch it live.
 Usage inside the pipeline::
 
     log = RunLog(execution_dir)
-    with log.step("Editor Orchestrator", agent="OpenAI gpt-4o"):
+    with log.step("Editor Orchestrator", agent="Gemini gemini-2.5-flash"):
         plan = await orchestrator.create_plan(context)
         log.info(f"Plan: {len(plan.sections)} sections, {len(plan.figures)} figures")
 """
@@ -49,7 +49,7 @@ class RunLog:
         self._path = execution_dir / LOG_FILENAME
         self._verbose = verbose
         self._step_index = 0
-        self._total_steps = 7
+        self._total_steps = 8
         self._start_time = time.monotonic()
         self._fh = self._path.open("w", encoding="utf-8")
         self._closed = False

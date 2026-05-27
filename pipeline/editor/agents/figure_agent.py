@@ -168,11 +168,78 @@ def _persist_figure_script(code: str, code_path: Path) -> None:
 
 
 def _validate_output(output_path: Path) -> tuple[bool, str]:
-    """Check that the figure file was created and is non-empty."""
+    """Fast technical validation: exists, readable, and non-trivial size."""
     if not output_path.exists():
         return False, f"Output file not found: {output_path}"
-    if output_path.stat().st_size < 1024:
-        return False, f"Output file too small ({output_path.stat().st_size} bytes); likely empty."
+    size = output_path.stat().st_size
+    if size < 1024:
+        return False, f"Output file too small ({size} bytes); likely empty."
+    try:
+        with output_path.open("rb") as fh:
+            header = fh.read(8)
+        if output_path.suffix.lower() == ".png" and header != b"\x89PNG\r\n\x1a\n":
+            return False, "Output exists but is not a valid PNG header."
+    except Exception as exc:
+        return False, f"Output exists but cannot be opened/read: {exc}"
+    return True, ""
+
+
+def _build_ai_validation_payload(
+    spec: FigureSpec,
+    *,
+    output_path: Path,
+    code: str,
+) -> str:
+    import json
+
+    payload = {
+        "figure_id": spec.figure_id,
+        "caption": spec.caption,
+        "intent": spec.intent,
+        "data_hints": spec.data_hints,
+        "output_path": str(output_path),
+        "generated_code_preview": code[:2400],
+        "task": (
+            "Validate whether the generated figure implementation is consistent with caption/intent/data_hints. "
+            "Use code semantics and metadata; do not invent details about unseen pixels."
+        ),
+        "output_schema": {
+            "verdict": "pass|fail",
+            "issues": ["string"],
+            "feedback_for_retry": "string",
+        },
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+async def _ai_validate_figure(
+    client: GeminiClient,
+    spec: FigureSpec,
+    *,
+    output_path: Path,
+    code: str,
+) -> tuple[bool, str]:
+    """LLM validation used only after technical checks pass."""
+    system = (
+        "You are a strict figure QA validator.\n"
+        "Given caption/intent/data_hints and generated matplotlib code, decide consistency.\n"
+        "Return JSON: {verdict:'pass|fail', issues:[...], feedback_for_retry:'...'}.\n"
+        "Use fail when labels/metrics/plot type are mismatched or key hints are ignored."
+    )
+    user = _build_ai_validation_payload(spec, output_path=output_path, code=code)
+    data = await client.generate_json(
+        system=system,
+        user=user,
+        trace_label=f"figure_validator:{spec.figure_id}",
+    )
+    verdict = str(data.get("verdict") or "pass").strip().lower()
+    issues = [str(i).strip() for i in (data.get("issues") or []) if str(i).strip()]
+    retry_feedback = str(data.get("feedback_for_retry") or "").strip()
+    if verdict == "fail":
+        reason = "; ".join(issues) if issues else "AI validation failed."
+        if retry_feedback:
+            reason += f"\nRetry guidance: {retry_feedback}"
+        return False, reason
     return True, ""
 
 
@@ -244,7 +311,8 @@ class FigureAgent:
         # --- generate new figure ---
         output_path = figures_dir / f"{spec.figure_id}.png"
         code_path = figures_dir / f"{spec.figure_id}.py"
-        max_retries = self._settings.editor_figure_max_retries
+        # Hard safety cap: never loop more than 3 attempts for figure generation/validation.
+        max_retries = min(self._settings.editor_figure_max_retries, 3)
         timeout = self._settings.editor_figure_exec_timeout
 
         error_feedback = ""
@@ -281,6 +349,23 @@ class FigureAgent:
             if not file_ok:
                 error_feedback = f"Output validation error (attempt {attempt + 1}):\n{file_err}"
                 logger.warning("Figure %s output invalid: %s", spec.figure_id, file_err)
+                continue
+
+            # Stage 2 (AI validation): run only after cheap technical checks pass.
+            try:
+                ai_ok, ai_err = await _ai_validate_figure(
+                    self._client,
+                    spec,
+                    output_path=output_path,
+                    code=code,
+                )
+            except Exception as exc:
+                # Do not fail the run on validator-side transient errors.
+                logger.warning("Figure %s AI validation skipped due to error: %s", spec.figure_id, exc)
+                ai_ok, ai_err = True, ""
+            if not ai_ok:
+                error_feedback = f"AI validation error (attempt {attempt + 1}):\n{ai_err}"
+                logger.warning("Figure %s AI validation failed: %s", spec.figure_id, ai_err)
                 continue
 
             _persist_figure_script(code, code_path)
