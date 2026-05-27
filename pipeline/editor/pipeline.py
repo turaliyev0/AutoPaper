@@ -79,7 +79,8 @@ class EditorPipeline:
         )
 
         self._orchestrator = EditorOrchestratorAgent(openai_client, settings=settings)
-        self._coordinator = SectionCoordinator(SectionWriterAgent(writer_client))
+        self._writer = SectionWriterAgent(writer_client)
+        self._coordinator = SectionCoordinator(self._writer)
         self._validator = IeeeValidatorAgent(gemini_client)
         self._figure_agent = FigureAgent(figure_client, settings)
 
@@ -228,16 +229,36 @@ class EditorPipeline:
                                 f"Validating {len(pending)} remaining section(s) "
                                 f"({len(loaded_val)} already on disk)",
                             )
-                        new_val = await self._validator.validate_all(
+                        threshold = self._settings.editor_validator_score_threshold
+                        max_rw = self._settings.editor_validator_rewrite_max_attempts
+                        new_val, rewritten = await self._validator.validate_all_with_rewrites(
                             pending,
                             plan,
                             context,
+                            self._writer,
+                            threshold=threshold,
+                            max_rewrites=max_rw,
                             run_dir=execution_dir,
                             persist_each=True,
                         )
+                        if any(r.rewrite_attempts > 0 for r in new_val):
+                            by_id = {s.section_id: s for s in sections}
+                            for d in rewritten:
+                                by_id[d.section_id] = d
+                            sections = [
+                                by_id[sp.section_id]
+                                for sp in plan.ordered_sections
+                                if sp.section_id in by_id
+                            ]
+                            write_sections(execution_dir, sections)
+                            n_rw = sum(1 for r in new_val if r.rewrite_attempts > 0)
+                            log.ok(f"Rewrote {n_rw} section(s) after low validator score (<{threshold})")
                         validation = loaded_val + new_val
                         write_editor_validation(execution_dir, validation)
-                    log.log_validation(validation)
+                    log.log_validation(
+                        validation,
+                        threshold=self._settings.editor_validator_score_threshold,
+                    )
                     v_pass = sum(1 for v in validation if v.verdict == "pass")
                     v_warn = sum(1 for v in validation if v.verdict == "warn")
                     v_fail = sum(1 for v in validation if v.verdict == "fail")

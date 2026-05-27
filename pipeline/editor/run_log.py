@@ -147,13 +147,21 @@ class RunLog:
                 err = (f.error or "")[:70]
                 self._emit(f"    {_CROSS} {f.figure_id:<30} FAILED — {err}")
 
-    def log_validation(self, results: list) -> None:
+    def log_validation(self, results: list, *, threshold: int = 70) -> None:
         for v in results:
             tag = _TICK if v.verdict == "pass" else ("!" if v.verdict == "warn" else _CROSS)
+            score = getattr(v, "score", None)
+            score_str = f" score={score}" if score is not None else ""
+            rw = getattr(v, "rewrite_attempts", 0) or 0
+            rw_str = f" rewrites={rw}" if rw else ""
+            below = score is not None and score < threshold
+            thresh_mark = " (<threshold)" if below else ""
             issues_str = ""
             if v.issues:
-                issues_str = f"  — {v.issues[0][:70]}"
-            self._emit(f"    {tag} {v.section_id:<22} {v.verdict.upper()}{issues_str}")
+                issues_str = f"  — {v.issues[0][:60]}"
+            self._emit(
+                f"    {tag} {v.section_id:<22} {v.verdict.upper()}{score_str}{thresh_mark}{rw_str}{issues_str}"
+            )
 
     def log_plan(self, plan) -> None:
         self.ok(f"Title    : {plan.article_title}")

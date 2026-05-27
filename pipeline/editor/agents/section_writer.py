@@ -15,7 +15,13 @@ from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
 
 from ..context import EditorContext
 from ..prompts.loader import load_section_writer_instruction
-from ..schemas import CitationEntry, EditorPlan, SectionDraft, SectionSpec
+from ..schemas import (
+    CitationEntry,
+    EditorPlan,
+    EditorValidationResult,
+    SectionDraft,
+    SectionSpec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,7 @@ def _build_section_payload(
 
     # --- collect manuscript content for mapped parts ---
     manuscript_content: dict[str, Any] = {}
+    source_path_filters: list[str] = []
     for part in spec.manuscript_parts:
         if part == "summary":
             manuscript_content["summary"] = context.manuscript.summary[:1000]
@@ -64,6 +71,24 @@ def _build_section_payload(
                 {"image": f.get("image_path"), "issue": f.get("issue")}
                 for f in context.manuscript.mismatch_flags
             ]
+        elif part == "source_text_blocks":
+            manuscript_content["source_text_blocks"] = context.manuscript.primary_source()
+        elif part.startswith("source_text:"):
+            frag = part.split(":", 1)[1].strip()
+            if frag:
+                source_path_filters.append(frag)
+                manuscript_content[f"source_text_{frag.replace('/', '_')}"] = (
+                    context.manuscript.primary_source(path_filter=frag)
+                )
+
+    # Always pass full 04 source; optional filters add section-focused slices
+    primary_manuscript_source = context.manuscript.primary_source()
+    if source_path_filters:
+        primary_manuscript_source["section_focus_paths"] = source_path_filters
+        primary_manuscript_source["section_focus_blocks"] = [
+            context.manuscript.primary_source(path_filter=frag)
+            for frag in source_path_filters
+        ]
 
     # --- citation pool (abbreviated) ---
     citation_pool = [
@@ -82,6 +107,7 @@ def _build_section_payload(
         "heading": spec.heading,
         "ieee_format": context.ieee_format,
         "notes": spec.notes,
+        "primary_manuscript_source": primary_manuscript_source,
         "manuscript_content": manuscript_content,
         "research_summaries": research_summaries,
         "citation_pool": citation_pool,
@@ -124,13 +150,54 @@ class SectionWriterAgent:
         spec: SectionSpec,
         context: EditorContext,
     ) -> SectionDraft:
+        return await self._generate(spec, context, revision=None)
+
+    async def rewrite_section(
+        self,
+        spec: SectionSpec,
+        context: EditorContext,
+        *,
+        prior: SectionDraft,
+        validation: EditorValidationResult,
+    ) -> SectionDraft:
+        revision = {
+            "mode": "ieee_validator_revision",
+            "validation_score": validation.score,
+            "validation_verdict": validation.verdict,
+            "issues_to_fix": validation.issues,
+            "validator_notes": validation.notes,
+            "previous_latex_body": prior.latex_body[:8000],
+            "instruction": (
+                "Rewrite this section to fix every listed validation issue. "
+                "Use IEEE numeric \\cite{key} only from citation_pool. "
+                "Use Fig.~\\ref{fig:ID} for figures — never hardcoded numbers or raw image paths. "
+                "Remove any pipeline/internal tool terms. Report original study data in Results only."
+            ),
+        }
+        return await self._generate(spec, context, revision=revision)
+
+    async def _generate(
+        self,
+        spec: SectionSpec,
+        context: EditorContext,
+        *,
+        revision: dict[str, Any] | None,
+    ) -> SectionDraft:
         known_citekeys = frozenset(c.citekey for c in context.citation_pool)
-        user = _build_section_payload(spec, context)
+        payload = json.loads(_build_section_payload(spec, context))
+        if revision:
+            payload["revision"] = revision
+        user = json.dumps(payload, indent=2, ensure_ascii=False)
+        label = (
+            f"section_writer:rewrite:{spec.section_id}"
+            if revision
+            else f"section_writer:{spec.section_id}"
+        )
         try:
             data = await self._client.generate_json(
                 system=self._system,
                 user=user,
-                trace_label=f"section_writer:{spec.section_id}",
+                trace_label=label,
             )
             return _draft_from_json(spec, data, known_citekeys=known_citekeys)
         except Exception as exc:

@@ -74,6 +74,16 @@ class EditorSettings(BaseSettings):
         default=3, validation_alias="EDITOR_FIGURE_MAX_RETRIES"
     )
 
+    editor_validator_score_threshold: int = Field(
+        default=70,
+        validation_alias="EDITOR_VALIDATOR_SCORE_THRESHOLD",
+        description="Sections with score below this are rewritten (up to max rewrite attempts).",
+    )
+    editor_validator_rewrite_max_attempts: int = Field(
+        default=2,
+        validation_alias="EDITOR_VALIDATOR_REWRITE_MAX_ATTEMPTS",
+    )
+
     @property
     def openai_key(self) -> str:
         return self.openai_api_key.strip()

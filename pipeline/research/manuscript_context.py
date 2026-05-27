@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+from pipeline.input.image_registry import active_mismatch_flags
 
 _DESIGN_LINE_KEYWORDS = (
     "hemispher",
@@ -135,7 +136,7 @@ def extract_experimental_design(data: dict[str, Any]) -> list[str]:
 
 def manuscript_context_from_standardized(data: dict[str, Any]) -> ManuscriptContext:
     flags: list[MismatchFlag] = []
-    for raw in data.get("mismatch_flags") or []:
+    for raw in active_mismatch_flags(data):
         if isinstance(raw, dict):
             flags.append(
                 MismatchFlag(

@@ -8,3 +8,4 @@
 | v004 | 2026-05-26 | Supervisor + research catalog | Index + summary excerpts in context; one slug per section; `primary_sections` on figures; slug duplicate rejection in tools. |
 | v005 | 2026-05-26 | Strict validation only | Removed auto-repair/heuristics; plan must pass validate_editor_plan or fail. |
 | v006 | 2026-05-26 | assign_research_slug + retry | One tool call per slug; orchestrator retries up to 3 times; finalize blocks missing slugs. |
+| v007 | 2026-05-27 | 04 text_blocks in plan | Orchestrator sees source file index; manuscript_parts include source_text_blocks / source_text:fragment. |

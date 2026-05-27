@@ -176,6 +176,7 @@ def append_editor_validation_result(
         "filename": filename,
         "section_id": result.section_id,
         "verdict": result.verdict,
+        "score": result.score,
     })
     manifest["sections"] = entries
     manifest["count"] = len(entries)
@@ -202,6 +203,7 @@ def write_editor_validation(
             "filename": filename,
             "section_id": result.section_id,
             "verdict": result.verdict,
+            "score": result.score,
         })
 
     manifest = {"count": len(manifest_entries), "sections": manifest_entries}

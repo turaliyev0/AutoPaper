@@ -84,8 +84,12 @@ EDITOR_TOOL_SCHEMAS: list[dict[str, Any]] = [
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Keys like 'summary', 'experimental_design', "
-                            "'methods_text', 'key_claims', 'mismatch_flags'."
+                            "Keys: 'summary', 'key_claims', 'experimental_design', "
+                            "'methods_text', 'mismatch_flags', 'source_text_blocks' "
+                            "(all 04 text_blocks), or 'source_text:<path_fragment>' "
+                            "(e.g. source_text:overview, source_text:method). "
+                            "Writers always receive full 04 source in primary_manuscript_source; "
+                            "these keys add section-focused slices."
                         ),
                     },
                     "notes": {

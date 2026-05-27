@@ -42,7 +42,10 @@ class SectionSpec(BaseModel):
     research_slugs: list[str] = Field(default_factory=list)
     manuscript_parts: list[str] = Field(
         default_factory=list,
-        description="Keys into the EditorContext.manuscript dict (e.g. 'summary', 'experimental_design').",
+        description=(
+            "Manuscript slices for writers: summary, key_claims, experimental_design, "
+            "methods_text, mismatch_flags, source_text_blocks, source_text:<path_fragment>."
+        ),
     )
     max_words: int = Field(
         default=0,
@@ -162,11 +165,16 @@ class EditorValidationResult(BaseModel):
 
     section_id: str
     verdict: Literal["pass", "warn", "fail"] = "pass"
+    score: int = 100
     issues: list[str] = Field(default_factory=list)
     notes: str = ""
+    rewrite_attempts: int = 0
     validated_at_utc: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
+
+    def needs_rewrite(self, *, threshold: int) -> bool:
+        return self.verdict == "fail" or self.score < threshold
 
 
 # ---------------------------------------------------------------------------

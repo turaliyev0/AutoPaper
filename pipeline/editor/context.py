@@ -8,8 +8,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from pipeline.input.image_registry import apply_image_exclusions, excluded_image_paths, usable_images
+from pipeline.input.image_registry import (
+    active_mismatch_flags,
+    apply_image_exclusions,
+    excluded_image_paths,
+    usable_images,
+)
 
+from .manuscript_source import build_primary_manuscript_source, source_block_index
 from .schemas import CitationEntry, IeeeFormat
 
 
@@ -105,7 +111,7 @@ class ManuscriptData:
 
     @property
     def mismatch_flags(self) -> list[dict[str, Any]]:
-        return [f for f in (self._data.get("mismatch_flags") or []) if isinstance(f, dict)]
+        return active_mismatch_flags(self._data)
 
     @property
     def duplicate_images(self) -> list[dict[str, Any]]:
@@ -123,6 +129,17 @@ class ManuscriptData:
             if path_fragment.lower() in str(block.get("relative_path") or "").lower():
                 out.append(str(block.get("technical_analysis") or ""))
         return "\n\n".join(filter(None, out))
+
+    def primary_source(
+        self,
+        *,
+        path_filter: str | None = None,
+    ) -> dict[str, Any]:
+        """Full step-04 text blocks formatted for editor section writers."""
+        return build_primary_manuscript_source(self._data, path_filter=path_filter)
+
+    def source_index(self) -> list[dict[str, Any]]:
+        return source_block_index(self._data)
 
 
 class EditorContext:
@@ -216,6 +233,20 @@ class EditorContext:
         lines.append("")
         lines.append("## Manuscript summary (from Joiner, step 04)")
         lines.append(self.manuscript.summary[:1200])
+        lines.append("")
+        lines.append("## Primary source files (04 text_blocks — assign via manuscript_parts)")
+        lines.append(
+            "Section writers receive full text under `primary_manuscript_source`. "
+            "In map_section_sources, include `source_text_blocks` and/or "
+            "`source_text:<path_fragment>` (e.g. source_text:overview, source_text:method)."
+        )
+        for entry in self.manuscript.source_index():
+            path = entry.get("path", "")
+            chars = entry.get("chars", 0)
+            preview = entry.get("preview", "")
+            lines.append(f"  - {path} ({chars} chars): {preview}")
+        if not self.manuscript.source_index():
+            lines.append("  (no text_blocks in 04)")
         lines.append("")
         lines.append("## Key quantitative claims")
         for claim in self.manuscript.key_claims[:12]:

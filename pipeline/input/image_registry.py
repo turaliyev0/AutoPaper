@@ -114,3 +114,22 @@ def usable_images(data: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         out.append(img)
     return out
+
+
+def active_mismatch_flags(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Mismatch flags that should still influence downstream planning/writing.
+
+    If a mismatch image is already excluded (e.g., likely_mismatch), it should be
+    ignored by later stages and not keep triggering mismatch-driven tasks.
+    """
+    blocked = excluded_image_paths(data)
+    out: list[dict[str, Any]] = []
+    for raw in data.get("mismatch_flags") or []:
+        if not isinstance(raw, dict):
+            continue
+        path = str(raw.get("image_path") or "").strip()
+        if path and path in blocked:
+            continue
+        out.append(raw)
+    return out
