@@ -92,11 +92,6 @@ If the section body is present but consists solely of restatements of the study 
 **Missing figures:**
 - If `figures_referenced` list is empty AND section is Results or Discussion → `major`: "Results/Discussion section references no figures. A comparative study must include at least one data figure."
 
-**Mismatch flag:**
-- If `mismatch_flags` list is non-empty → `critical`: "Figure–text mismatch detected: {mismatch_flags[0].issue}. Mismatched figures must be replaced before submission."
-
----
-
 ## STEP 4 — Pipeline leakage [CRITICAL]
 
 Check ONLY for these exact strings appearing as prose in the published manuscript body (not in LaTeX comments, not in captions):

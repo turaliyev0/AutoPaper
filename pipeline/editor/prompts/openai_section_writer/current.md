@@ -99,7 +99,6 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 
 **Discussion**
 - Use `available_figure_ids` only when this section introduces a figure listed there.
-- When addressing `mismatch_flags`: describe the discrepancy using the figure's caption and reference it as `Fig.~\\ref{fig:FIGURE_ID}` (use the closest matching figure ID from `available_figure_ids`). **Never paste the raw image path** (e.g., `images/image.png`) directly into the text.
 
 **Conclusion**
 - 3–5 sentences. No new claims. No roadmap.

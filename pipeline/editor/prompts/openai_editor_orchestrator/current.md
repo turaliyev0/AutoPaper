@@ -60,7 +60,7 @@ Same section list; validation enforces shorter abstract if needed.
   - `comparable_studies` → Background or Discussion (never Results)
   - `literature_benchmark` → Background or Discussion (**never Results** — not this study's data)
   - `methods_context` → Materials and Methods (or Discussion)
-  - `design_critique` / `mismatch_review` → Discussion
+  - `design_critique` → Discussion
 - **Results** may only use slugs with manuscript-derived content (`data_provenance` not `literature_only`). Prefer **no research slugs** in Results — use `key_claims` + `experimental_design` only.
 
 ### `manuscript_parts` (per section)
@@ -72,7 +72,7 @@ Same section list; validation enforces shorter abstract if needed.
 | `source_text_blocks` | All Joiner text files (explicit reminder) |
 | `source_text:<fragment>` | Blocks whose path contains fragment, e.g. `source_text:overview`, `source_text:method` |
 | `summary` | Joiner top-level summary (secondary to source blocks) |
-| `key_claims`, `experimental_design`, `methods_text`, `mismatch_flags` | As before |
+| `key_claims`, `experimental_design`, `methods_text` | As before |
 
 **Recommended mapping:**
 
@@ -82,7 +82,7 @@ Same section list; validation enforces shorter abstract if needed.
 - **Background**: slugs + `["source_text:overview", "summary"]`
 - **Materials and Methods**: slugs when methods-related + `["source_text:method", "experimental_design", "methods_text"]`
 - **Results**: **no literature/benchmark slugs**; `["source_text:method", "key_claims", "experimental_design"]` only
-- **Discussion**: slugs + `["source_text:overview", "summary", "key_claims", "mismatch_flags"]`
+- **Discussion**: slugs + `["source_text:overview", "summary", "key_claims"]`
 - **Conclusion**: `["source_text:overview", "summary", "key_claims"]`, no slugs
 
 Do **not** pass `max_words`.
@@ -121,5 +121,4 @@ Choose 1–4:
    - ✓ `"Background"` not `"II. Background / Related Work"`
    - ✓ `"Materials and Methods"` not `"III. Materials and Methods"`
 4. **No word limits** from the orchestrator.
-5. **`mismatch_flags`:** Include `mismatch_flags` in Discussion `manuscript_parts`. Writers address flags via closest **`figure_id`** from the plan — never raw image paths. No separate `notes` needed for this.
-6. **Every trusted research slug** must have its own **`assign_research_slug`** call before `finalize_editor_plan`.
+5. **Every trusted research slug** must have its own **`assign_research_slug`** call before `finalize_editor_plan`.
