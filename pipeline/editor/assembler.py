@@ -66,6 +66,31 @@ def _escape_latex(text: str) -> str:
     return text
 
 
+def _normalize_body_paragraphs(body: str) -> str:
+    """
+    Convert JSON-escaped newlines (``\\n\\n`` literals) to real LaTeX paragraph breaks.
+    """
+    text = body.replace("\\n\\n", "\n\n").replace("\\n", "\n")
+    # Collapse runs of 3+ newlines to a standard paragraph break
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _ieee_index_terms(terms: str) -> str:
+    """Sentence-style index terms (IEEE): lowercase generic phrases; keep acronyms in parens."""
+    parts = [p.strip() for p in terms.split(",") if p.strip()]
+    normalized: list[str] = []
+    for part in parts:
+        if part.isupper() or "(" in part:
+            normalized.append(part)
+            continue
+        if part == part.title() and len(part.split()) > 1:
+            normalized.append(part.lower())
+        else:
+            normalized.append(part)
+    return ", ".join(normalized)
+
+
 # ---------------------------------------------------------------------------
 # Section rendering
 # ---------------------------------------------------------------------------
@@ -75,7 +100,7 @@ def _render_section(draft: SectionDraft, order: int) -> str:
     """Convert a SectionDraft to LaTeX. Abstract / Index Terms get special treatment."""
     sid = draft.section_id.lower()
     heading = draft.heading
-    body = (draft.latex_body or "").strip()
+    body = _normalize_body_paragraphs(draft.latex_body or "")
 
     if sid == "abstract":
         return f"\\begin{{abstract}}\n{body}\n\\end{{abstract}}\n"
@@ -83,6 +108,7 @@ def _render_section(draft: SectionDraft, order: int) -> str:
     if sid == "index_terms":
         # IEEEkeywords environment
         terms = re.sub(r"^index terms?\s*[:\-—]?\s*", "", body, flags=re.IGNORECASE)
+        terms = _ieee_index_terms(terms)
         return f"\\begin{{IEEEkeywords}}\n{terms}\n\\end{{IEEEkeywords}}\n"
 
     if sid == "references":

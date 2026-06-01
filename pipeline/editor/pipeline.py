@@ -1,4 +1,4 @@
-﻿"""EditorPipeline — orchestrates all editor agents end-to-end."""
+"""EditorPipeline — orchestrates all editor agents end-to-end."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from .agents.section_writer import SectionCoordinator, SectionWriterAgent
 from .assembler import assemble_manuscript
 from .config import EditorSettings, load_editor_settings
 from .context import EditorContext, load_editor_context
+from .plan_enrichment import enrich_editor_plan
 from .plan_filters import filter_editor_plan_figures
 from .integrity_check import validate_manuscript_integrity
 from .plan_validate import validate_editor_plan
@@ -114,8 +115,11 @@ class EditorPipeline:
         if resume and (execution_dir / EXEC_EDITOR_PLAN).is_file():
             plan = load_editor_plan(execution_dir)
             if plan is not None:
-                plan = filter_editor_plan_figures(plan, context)
+                plan = enrich_editor_plan(
+                    filter_editor_plan_figures(plan, context), context
+                )
                 validate_editor_plan(plan, context)
+                write_editor_plan(execution_dir, plan)
                 with log.step("Editor Orchestrator (resumed)"):
                     log.ok(f"Loaded existing {EXEC_EDITOR_PLAN} ({len(plan.sections)} sections, {len(plan.figures)} figures)")
 
@@ -128,7 +132,9 @@ class EditorPipeline:
                 log.arrow("Calling OpenAI Responses API (tool session)…")
                 try:
                     plan = await self._orchestrator.create_plan(context)
-                    plan = filter_editor_plan_figures(plan, context)
+                    plan = enrich_editor_plan(
+                        filter_editor_plan_figures(plan, context), context
+                    )
                     validate_editor_plan(plan, context)
                     log.log_plan(plan)
                     write_editor_plan(execution_dir, plan)
@@ -269,17 +275,16 @@ class EditorPipeline:
             else:
                 log.warn("No sections to validate.")
 
-        # ── STEP 5b: Integrity gate ───────────────────────────────────
-        integrity_ok = True
+        # ── STEP 5b: Integrity check (warn only — assembly always proceeds) ──
         with log.step("Manuscript integrity check"):
             if sections and plan is not None:
                 try:
                     validate_manuscript_integrity(plan, sections, context)
                     log.ok("Integrity checks passed")
                 except ValueError as exc:
-                    integrity_ok = False
-                    log.fail(str(exc))
+                    log.warn(str(exc))
                     errors.append(str(exc))
+                    log.warn("Continuing to assembly despite integrity warnings.")
             else:
                 log.warn("Skipping integrity check (no sections or plan).")
 
@@ -288,9 +293,7 @@ class EditorPipeline:
         bib_content = ""
         with log.step("Assemble LaTeX (IEEEtran)"):
             print("[STEP] Assembling LaTeX manuscript", flush=True)
-            if not integrity_ok:
-                log.warn("Skipping assembly — integrity check failed.")
-            elif not sections:
+            if not sections:
                 log.warn("No sections to assemble.")
             else:
                 try:

@@ -110,15 +110,21 @@ class CitationEntry(BaseModel):
     doi: str = ""
 
     def bibtex_line(self) -> str:
-        return (
-            f"@article{{{self.citekey},\n"
-            f"  author  = {{{self.authors}}},\n"
-            f"  title   = {{{self.title}}},\n"
-            f"  journal = {{{self.journal}}},\n"
-            f"  year    = {{{self.year}}},\n"
-            f"  doi     = {{{self.doi}}}\n"
-            f"}}"
-        )
+        from .bibtex_utils import normalize_bibtex_authors
+
+        author_field = normalize_bibtex_authors(self.authors)
+        lines = [
+            f"@article{{{self.citekey},",
+            f"  author  = {{{author_field}}},",
+            f"  title   = {{{self.title}}},",
+            f"  journal = {{{self.journal}}},",
+            f"  year    = {{{self.year}}},",
+        ]
+        doi = str(self.doi or "").strip()
+        if doi:
+            lines.append(f"  doi     = {{{doi}}},")
+        lines.append("}")
+        return "\n".join(lines)
 
 
 class SectionDraft(BaseModel):

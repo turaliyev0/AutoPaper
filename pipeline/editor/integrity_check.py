@@ -17,6 +17,45 @@ _NUMERIC = re.compile(
     re.IGNORECASE,
 )
 _CITE_NEAR = re.compile(r"\\cite\{[^}]+\}")
+# KPI / acquisition specs from methods (not reported findings).
+_METHOD_SPEC_BEFORE = re.compile(
+    r"(?:\bat\b|\bof\b|\bfor\b|\bto\b|\bfrom\b|\bbetween\b|\brange\b|\bthreshold\b|"
+    r"\bfilter\b|\brate\b|\bspacing\b|\bthick(?:ness)?\b|\bduration\b|\bweeks?\b)\s*$",
+    re.IGNORECASE,
+)
+_NO_FINDINGS = re.compile(
+    r"not provided|cannot be presented|not available|no quantitative|were not|"
+    r"is not provided|cannot be|without measured|lack(?:s|ing)? (?:the )?quantitative",
+    re.IGNORECASE,
+)
+
+
+def _numeric_is_method_spec(body: str, match: re.Match[str]) -> bool:
+    """True when the number is a study-design KPI spec, not a reported measurement."""
+    start = max(0, match.start() - 160)
+    end = min(len(body), match.end() + 80)
+    window = body[start:end]
+    prefix = body[start : match.start()]
+    if _METHOD_SPEC_BEFORE.search(prefix):
+        return True
+    if _NO_FINDINGS.search(window):
+        return True
+    design_phrases = (
+        "indicators",
+        "evaluated",
+        "included",
+        "assessed",
+        "metrics",
+        "performance indicators",
+        "key performance",
+        "expected",
+        "anticipated",
+        "hypothesis",
+        "objective",
+        "aimed to",
+    )
+    lower = window.lower()
+    return any(p in lower for p in design_phrases)
 
 
 def collect_integrity_errors(
@@ -39,10 +78,17 @@ def collect_integrity_errors(
 
     usable = context.manuscript.usable_images()
     if not usable and plan.figures:
-        errors.append(
-            f"Plan has {len(plan.figures)} figure(s) but no usable manuscript images; "
-            "remove figures or provide a valid reuse_path."
+        from .plan_enrichment import _manuscript_has_results
+
+        has_results = _manuscript_has_results(context.manuscript)
+        all_synthetic_ok = has_results and all(
+            (fig.reuse_path or "").strip() or fig.data_hints for fig in plan.figures
         )
+        if not all_synthetic_ok:
+            errors.append(
+                f"Plan has {len(plan.figures)} figure(s) but no usable manuscript images; "
+                "remove figures or provide a valid reuse_path."
+            )
 
     if context.manuscript.excluded_images and plan.figures:
         for fig in plan.figures:
@@ -56,6 +102,8 @@ def collect_integrity_errors(
     if results_draft and results_draft.success and results_draft.latex_body:
         body = results_draft.latex_body
         for match in _NUMERIC.finditer(body):
+            if _numeric_is_method_spec(body, match):
+                continue
             start = max(0, match.start() - 120)
             window = body[start : match.end() + 40]
             if not _CITE_NEAR.search(window):

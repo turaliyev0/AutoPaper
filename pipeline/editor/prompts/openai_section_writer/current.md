@@ -62,6 +62,7 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 
 ### General
 - Write in formal academic English, third person.
+- Separate paragraphs with a **blank line** in `latex_body` (two real line breaks). Do **not** emit literal backslash-n sequences like `\\n\\n`.
 - Use **only** the citation pool provided. Cite using `\\cite{citekey}`.
 - Never invent data, results, or paper titles. Only state what is explicitly present in `primary_manuscript_source`, `manuscript_content`, or (for cited prior work) `research_summaries`.
 - **Write as thoroughly as the evidence supports** — there is no orchestrator word cap. Cover the topic completely; do not pad with filler.
@@ -77,14 +78,17 @@ You are given `available_figure_ids` — the **only** figure IDs that exist in t
 
 **Index Terms**
 - Comma-separated list of 5–8 keywords. No sentences.
+- Use **IEEE sentence case**: lowercase generic phrases (e.g. `flexible neural electrodes`, `chronic recording`); keep acronyms inside parentheses when needed (e.g. `brain-computer interfaces (BCIs)`).
 
 **Introduction**
 - End with ONE roadmap sentence: "The remainder of this paper is organised as follows: …"
 - **Do NOT add a roadmap sentence to any other section.**
+- Cover clinical motivation and study objectives. **Do not** repeat the full literature survey — that belongs in Background.
 
 **Background / Related Work**
 - Every factual claim needs a citation from citation_pool.
-- Close with motivation for this paper (gap in prior work). No roadmap here.
+- **Do NOT restate** the Introduction's problem paragraph (mechanical mismatch → glial scar → impedance → SNR). Assume the reader just read Introduction.
+- Focus on **prior studies, materials, and comparable designs** not already cited in Introduction. Close with motivation for this paper (gap in prior work). No roadmap here.
 
 **Materials and Methods**
 - Write in passive voice.

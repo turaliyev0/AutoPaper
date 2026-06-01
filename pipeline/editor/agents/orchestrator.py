@@ -1,4 +1,4 @@
-﻿"""Editor orchestrator — plans the IEEE manuscript structure via OpenAI Responses API."""
+"""Editor orchestrator — plans the IEEE manuscript structure via OpenAI Responses API."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pipeline.research.clients.openai_client import OpenAIClient
 
 from ..config import EditorSettings
 from ..context import EditorContext
+from ..plan_enrichment import enrich_editor_plan
 from ..plan_filters import filter_editor_plan_figures
 from ..plan_validate import collect_plan_validation_errors
 from ..prompts.loader import load_editor_orchestrator_instruction
@@ -95,7 +96,10 @@ class EditorOrchestratorAgent:
                 )
 
             try:
-                plan = filter_editor_plan_figures(builder.to_plan(), context)
+                plan = enrich_editor_plan(
+                    filter_editor_plan_figures(builder.to_plan(), context),
+                    context,
+                )
                 EditorPlan.model_validate(plan.model_dump())
                 plan_errors = collect_plan_validation_errors(plan, context)
                 if plan_errors:

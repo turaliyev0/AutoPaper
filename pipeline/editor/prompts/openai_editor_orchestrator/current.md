@@ -54,6 +54,7 @@ Same section list; validation enforces shorter abstract if needed.
 - **Every trusted slug** must be assigned to **exactly one** section (duplicate assignments are rejected).
 - Choose sections using **validator overviews**, not slug filenames alone.
 - Do **not** duplicate the same literature slug in both Introduction and Background unless excerpts show clearly distinct roles (prefer one primary home).
+- **Background must not repeat Introduction:** Background covers prior literature and comparable work only — not the study hypothesis, design, or a second copy of the BCI clinical motivation paragraph.
 - **Respect `task_kind` and `allowed_sections` in the catalog** — the runtime rejects illegal assignments.
 - Typical fit:
   - `literature_review` → Introduction or Background
@@ -92,7 +93,8 @@ Do **not** pass `max_words`.
 ## Figure rules
 
 - Use `reuse_path` only from **Images available for reuse_path** — never **Excluded images**.
-- If **no usable images** are listed, do **not** call `delegate_figure` (no synthetic experiment plots).
+- If **no usable images** are listed but `key_claims` / results summary contains quantitative time-series or histology values, still call **`delegate_figure`** (2–3 synthetic matplotlib plots: impedance vs time, SNR or yield, histology bars) with `data_hints` from those numbers and `primary_sections: ["results"]`.
+- If **no usable images** are listed and there are no quantitative results, do **not** call `delegate_figure`.
 - Each `reuse_path` at most once.
 - Set **`primary_sections`** on every `delegate_figure` call (required) — section_id list where the figure is first introduced (e.g. `["results"]` for data plots).
 - Maximum 4 figures (conference) or 6 (journal).

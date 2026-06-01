@@ -90,7 +90,8 @@ If the section body is present but consists solely of restatements of the study 
 - Text contains a raw file path such as `images/`, `.png`, `.jpg`, `.pdf` appearing as prose (not inside a LaTeX command) → `major`: "Raw image file path found in manuscript body. Use Fig.~\\ref{fig:id}."
 
 **Missing figures:**
-- If `figures_referenced` list is empty AND section is Results or Discussion → `major`: "Results/Discussion section references no figures. A comparative study must include at least one data figure."
+- If `figures_referenced` list is empty AND section is **Results** → `major`: "Results section references no figures. A comparative study must include at least one data figure."
+- If `figures_referenced` list is empty AND section is **Discussion** → flag `major` **only when Results also references no figures** (check `results_has_figures` in payload). If Results already introduces data figures, do not require duplicate figure refs in Discussion.
 
 ## STEP 4 — Pipeline leakage [CRITICAL]
 

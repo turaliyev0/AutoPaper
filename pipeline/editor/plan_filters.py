@@ -44,14 +44,18 @@ def filter_editor_plan_figures(plan: EditorPlan, context: EditorContext) -> Edit
     if len(kept) != len(plan.figures):
         plan.figures = kept
 
-    # No usable manuscript images: drop synthetic figures (empty reuse_path).
+    # No usable manuscript images: keep synthetic plots (data_hints) but drop
+    # empty reuse_path figures with no generated data spec.
     if not context.manuscript.usable_images():
         before = len(plan.figures)
-        plan.figures = [f for f in plan.figures if (f.reuse_path or "").strip()]
+        plan.figures = [
+            f for f in plan.figures
+            if (f.reuse_path or "").strip() or f.data_hints
+        ]
         dropped = before - len(plan.figures)
         if dropped:
             logger.info(
-                "Dropped %d figure(s): no usable images and no valid reuse_path",
+                "Dropped %d figure(s): no usable images and no reuse_path/data_hints",
                 dropped,
             )
 

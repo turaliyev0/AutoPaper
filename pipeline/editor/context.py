@@ -1,4 +1,4 @@
-﻿"""EditorContext — loads all pipeline artifacts needed to write the manuscript."""
+"""EditorContext — loads all pipeline artifacts needed to write the manuscript."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from pipeline.input.image_registry import (
     usable_images,
 )
 
+from .bibtex_utils import normalize_bibtex_authors
 from .manuscript_source import build_primary_manuscript_source, source_block_index
 from .schemas import CitationEntry, IeeeFormat
 
@@ -199,11 +200,16 @@ class EditorContext:
                 if key in seen:
                     continue
                 seen.add(key)
-                authors = str(src.get("authors") or "")
+                authors_raw = str(src.get("authors") or "")
+                if not _source_authors_usable(authors_raw):
+                    continue
+                authors = normalize_bibtex_authors(authors_raw)
                 year = src.get("year") or ""
                 journal = str(src.get("journal") or "")
                 doi = str(src.get("doi") or "")
-                citekey = _make_citekey(authors, year, idx)
+                citekey = _make_citekey(authors_raw, year, idx)
+                if re.match(r"^others\d", citekey):
+                    continue
                 pool.append(CitationEntry(
                     citekey=citekey,
                     authors=authors,
@@ -308,9 +314,25 @@ class EditorContext:
 
 
 def _make_citekey(authors: str, year: Any, idx: int) -> str:
-    first_last = (authors.split(",")[0].split(" ")[-1]).lower()
-    first_last = re.sub(r"[^\w]", "", first_last) or f"ref{idx}"
+    first_part = (authors.split(",")[0].strip() if authors else "")
+    words = first_part.split()
+    first_last = words[-1].lower() if words else ""
+    first_last = re.sub(r"[^\w]", "", first_last)
+    if not first_last or first_last in ("others", "other", "etal", "unknown"):
+        return f"ref{idx}"
     return f"{first_last}{year}"
+
+
+def _source_authors_usable(authors: str) -> bool:
+    raw = (authors or "").strip()
+    if not raw:
+        return False
+    head = raw.split(",")[0].strip().lower()
+    if head in ("others", "other", "unknown", "et al.", "et al", "n/a"):
+        return False
+    if re.fullmatch(r"others?\d*", head):
+        return False
+    return True
 
 
 def _load_validation_map(validation_dir: Path) -> dict[str, dict[str, Any]]:

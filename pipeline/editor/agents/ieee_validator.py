@@ -1,4 +1,4 @@
-﻿"""IEEE validator agent — strict pre-submission gate (v003) with score-based rewrites."""
+"""IEEE validator agent — strict pre-submission gate (v003) with score-based rewrites."""
 
 from __future__ import annotations
 
@@ -202,15 +202,41 @@ def _deterministic_checks(
                 )
             )
 
-    if draft.section_id in ("results", "discussion") and not draft.figures_referenced:
+    if draft.section_id == "results" and not draft.figures_referenced and plan.figures:
         issues.append(
             _issue(
                 "major",
                 "STEP 3",
-                "Results/Discussion section references no figures. "
+                "Results section references no figures. "
                 "A comparative study must include at least one data figure.",
             )
         )
+    if (
+        draft.section_id == "discussion"
+        and not draft.figures_referenced
+        and not plan.figures
+    ):
+        issues.append(
+            _issue(
+                "major",
+                "STEP 3",
+                "Discussion section references no figures and Results has none either. "
+                "A comparative study must include at least one data figure.",
+            )
+        )
+
+    for match in re.finditer(r"\\cite\{([^}]+)\}", latex):
+        for raw_key in match.group(1).split(","):
+            key = raw_key.strip()
+            if key and key not in pool:
+                issues.append(
+                    _issue(
+                        "critical",
+                        "STEP 2",
+                        f"Unknown citekey '{key}' in \\cite{{}}. "
+                        "This reference does not exist in the bibliography pool.",
+                    )
+                )
 
     if draft.section_id == "results" and not re.search(r"\d", latex):
         issues.append(
@@ -243,6 +269,7 @@ def _build_validation_payload(
         "citations_used": draft.citations_used,
         "citation_pool_keys": citation_pool_keys[:60],
         "figures_referenced": draft.figures_referenced,
+        "results_has_figures": bool(plan.figures),
         "latex_body_preview": draft.latex_body[:4000],
         "validation_focus": plan.validation_focus,
         "mismatch_flags": mismatch_flags,

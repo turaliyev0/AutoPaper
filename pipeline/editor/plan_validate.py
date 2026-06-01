@@ -6,7 +6,7 @@ import re
 
 from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
 
-from .context import EditorContext
+from .plan_enrichment import _manuscript_has_results
 from .schemas import EditorPlan
 
 
@@ -63,13 +63,18 @@ def collect_plan_validation_errors(
                 )
 
     usable = context.manuscript.usable_images()
+    has_results = _manuscript_has_results(context.manuscript)
     if not usable and plan.figures:
         for fig in plan.figures:
-            if not (fig.reuse_path or "").strip():
-                errors.append(
-                    f"Figure {fig.figure_id!r} has no reuse_path but no usable images exist; "
-                    "omit figures or link a valid manuscript image."
-                )
+            if (fig.reuse_path or "").strip():
+                continue
+            if has_results and fig.data_hints:
+                continue
+            errors.append(
+                f"Figure {fig.figure_id!r} has no reuse_path but no usable images exist; "
+                "omit figures, link a valid manuscript image, or provide data_hints for "
+                "synthetic plots when quantitative results are in the manuscript."
+            )
 
     if context.manuscript.excluded_images and plan.figures:
         blocked = context.manuscript.excluded_paths()

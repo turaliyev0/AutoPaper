@@ -1,4 +1,4 @@
-﻿"""Section writer agent — writes one IEEE section as LaTeX body text."""
+"""Section writer agent — writes one IEEE section as LaTeX body text."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pipeline.research.utils import extract_json_object
 
 from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
 
+from ..assembler import _normalize_body_paragraphs
 from ..context import EditorContext
 from ..prompts.loader import load_section_writer_instruction
 from ..schemas import (
@@ -211,12 +212,32 @@ class SectionWriterAgent:
             )
 
 
+def _strip_unknown_cites(latex_body: str, known_citekeys: frozenset[str]) -> str:
+    """Remove \\cite{...} entries whose keys are not in the bibliography pool."""
+
+    def _repl(match: re.Match[str]) -> str:
+        keys = [k.strip() for k in match.group(1).split(",") if k.strip()]
+        valid = [k for k in keys if k in known_citekeys]
+        if not valid:
+            return ""
+        return f"\\cite{{{', '.join(valid)}}}"
+
+    text = re.sub(r"\\cite\{([^}]+)\}", _repl, latex_body)
+    text = re.sub(r"\s+,", ",", text)
+    text = re.sub(r"  +", " ", text)
+    return text
+
+
 def _draft_from_json(
     spec: SectionSpec,
     data: dict[str, Any],
     known_citekeys: frozenset[str] | None = None,
 ) -> SectionDraft:
-    latex_body = _normalize_backslashes(str(data.get("latex_body") or ""))
+    latex_body = _normalize_body_paragraphs(
+        _normalize_backslashes(str(data.get("latex_body") or ""))
+    )
+
+    latex_body = _strip_unknown_cites(latex_body, known_citekeys or frozenset())
 
     # Sync figures_referenced with refs actually present in the body
     # so the validator never sees a mismatch between declaration and usage.
