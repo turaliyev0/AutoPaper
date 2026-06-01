@@ -1,8 +1,9 @@
-﻿"""AutoPaper — backend service (REST + SSE + OAuth2 JWT)."""
+﻿"""AutoPaper — backend service (REST + SSE + Google OAuth)."""
 
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 if sys.platform == "win32":
@@ -14,24 +15,36 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from backend.api.auth_routes import router as auth_router
 from backend.api.runs_routes import router as runs_router
 from backend.api.system_routes import router as system_router
-from backend.auth import auth_disabled
+from backend.auth import auth_disabled, session_secret
 
 _PROJECT_ROOT = Path(__file__).resolve().parent
 _FRONTEND_DIST = _PROJECT_ROOT / "frontend" / "dist"
 
+
+def _session_middleware_secret() -> str:
+    try:
+        return session_secret()
+    except RuntimeError:
+        return os.environ.get("AUTOPAPER_SESSION_SECRET", "dev-session-secret-change-me")
+
+
 app = FastAPI(
     title="AutoPaper API",
-    version="2.1.0",
+    version="2.2.0",
     description=(
-        "IEEE manuscript pipeline with **OAuth2** (JWT bearer).\n\n"
-        "1. `POST /api/auth/token` with username/password → `access_token`\n"
-        "2. Send `Authorization: Bearer <token>` on protected routes\n"
-        "3. SSE: `GET /api/runs/{id}/stream?access_token=<token>`\n\n"
-        "Set `AUTOPAPER_AUTH_DISABLED=1` for local dev without login."
+        "IEEE manuscript pipeline with **Google sign-in**.\n\n"
+        "**Browser:** open `GET /api/auth/google/login` → Google → callback → "
+        "frontend receives `access_token`.\n\n"
+        "**SPA:** Google Identity Services → `POST /api/auth/google/verify` "
+        "with `{ \"credential\": \"<id_token>\" }`.\n\n"
+        "Then: `Authorization: Bearer <access_token>` on all `/api/*` routes. "
+        "SSE: `?access_token=<token>` on `/api/runs/{id}/stream`.\n\n"
+        "Local dev without Google: `AUTOPAPER_AUTH_DISABLED=1`."
     ),
     contact={"name": "AutoPaper"},
     license_info={"name": "MIT"},
@@ -44,6 +57,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+app.add_middleware(SessionMiddleware, secret_key=_session_middleware_secret())
 
 app.include_router(auth_router)
 app.include_router(system_router)
@@ -63,22 +77,23 @@ def _custom_openapi():
     )
     if not auth_disabled():
         schema.setdefault("components", {}).setdefault("securitySchemes", {})[
-            "OAuth2PasswordBearer"
+            "HTTPBearer"
         ] = {
-            "type": "oauth2",
-            "flows": {
-                "password": {
-                    "tokenUrl": "/api/auth/token",
-                    "scopes": {},
-                }
-            },
+            "type": "http",
+            "scheme": "bearer",
+            "description": "Session token from Google sign-in (/api/auth/google/*)",
         }
+        public_prefixes = (
+            "/api/health",
+            "/api/auth/google",
+            "/api/auth/status",
+        )
         for path, methods in schema.get("paths", {}).items():
-            if path.startswith("/api/auth/token") or path == "/api/health":
+            if any(path.startswith(p) for p in public_prefixes):
                 continue
             for op in methods.values():
                 if isinstance(op, dict) and path.startswith("/api/"):
-                    op.setdefault("security", [{"OAuth2PasswordBearer": []}])
+                    op.setdefault("security", [{"HTTPBearer": []}])
     app.openapi_schema = schema
     return app.openapi_schema
 
