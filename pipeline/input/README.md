@@ -17,7 +17,7 @@ pip install -r requirements.txt
 | Subfolder | Role |
 |-----------|------|
 | `description/` | Narrative (`*.md`, `*.txt`, `*.rst`) |
-| `details/` | Methods / parameters |
+| `details/` | Methods / parameters; add **`results.txt`** or **`results.md`** with measured outcomes (impedance, SNR, histology, *p*-values) so Abstract/Results are not qualitative-only |
 | `images/` | Figures |
 | `metadata/` | `*.json` |
 

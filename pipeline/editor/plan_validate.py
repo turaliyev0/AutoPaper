@@ -6,7 +6,7 @@ import re
 
 from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
 
-from .plan_enrichment import _manuscript_has_results
+from .context import EditorContext
 from .schemas import EditorPlan
 
 
@@ -63,12 +63,11 @@ def collect_plan_validation_errors(
                 )
 
     usable = context.manuscript.usable_images()
-    has_results = _manuscript_has_results(context.manuscript)
     if not usable and plan.figures:
         for fig in plan.figures:
             if (fig.reuse_path or "").strip():
                 continue
-            if has_results and fig.data_hints:
+            if fig.data_hints:
                 continue
             errors.append(
                 f"Figure {fig.figure_id!r} has no reuse_path but no usable images exist; "

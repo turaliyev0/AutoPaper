@@ -96,8 +96,8 @@ class EditorOrchestratorAgent:
                 )
 
             try:
-                plan = enrich_editor_plan(
-                    filter_editor_plan_figures(builder.to_plan(), context),
+                plan = filter_editor_plan_figures(
+                    enrich_editor_plan(builder.to_plan(), context),
                     context,
                 )
                 EditorPlan.model_validate(plan.model_dump())
@@ -119,9 +119,13 @@ class EditorOrchestratorAgent:
                         f"Editor orchestrator produced invalid plan: {exc}"
                     ) from exc
                 builder._finalized = False
+                builder.figure_specs.clear()
                 user_msg = (
                     f"Plan validation failed (attempt {attempt + 1}). Fix with tools only:\n"
                     f"{exc}\n\n"
+                    "If no usable images exist: either omit delegate_figure entirely, or "
+                    "populate data_hints with numeric values from the manuscript for each "
+                    "synthetic plot. Do not re-register the same figure_id twice.\n"
                     "Use assign_research_slug for each missing slug, then finalize_editor_plan."
                 )
                 continue

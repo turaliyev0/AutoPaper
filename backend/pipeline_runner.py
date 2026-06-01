@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 
 if sys.platform == "win32":
@@ -42,7 +43,22 @@ def _get_semaphore() -> asyncio.Semaphore:
     return _semaphore
 
 
-async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str = "journal") -> None:
+@dataclass
+class PipelineRunConfig:
+    full_research: bool = True
+    ieee_edit: bool = True
+    log_editor: bool = True
+    ingest_only: bool = False
+    mismatch_policy: str = "continue"  # continue | strict
+
+
+async def run_pipeline(
+    run: PipelineRun,
+    input_path: Path,
+    *,
+    ieee_format: str = "journal",
+    config: PipelineRunConfig | None = None,
+) -> None:
     sem = _get_semaphore()
 
     # ── Queue if all slots are busy ───────────────────────────────────────────
@@ -58,19 +74,38 @@ async def run_pipeline(run: PipelineRun, input_path: Path, *, ieee_format: str =
         })
 
     async with sem:
-        await _execute(run, input_path, ieee_format=ieee_format)
+        await _execute(run, input_path, ieee_format=ieee_format, config=config or PipelineRunConfig())
 
 
-async def _execute(run: PipelineRun, input_path: Path, *, ieee_format: str) -> None:
+def _build_cmd(input_path: Path, ieee_format: str, config: PipelineRunConfig) -> list[str]:
     cmd = [
         sys.executable, "-m", "autopaper.main.app",
         "--input", str(input_path),
-        "--full-research",
-        "--ieee-edit",
-        "--log-editor",
-        "--force-continue-on-mismatch",
         "--ieee-format", ieee_format,
     ]
+    if config.ingest_only:
+        cmd.append("--no-research")
+    elif config.full_research:
+        cmd.append("--full-research")
+    if config.ieee_edit and not config.ingest_only:
+        cmd.append("--ieee-edit")
+        if config.log_editor:
+            cmd.append("--log-editor")
+    if config.mismatch_policy == "strict":
+        cmd.append("--strict")
+    else:
+        cmd.append("--force-continue-on-mismatch")
+    return cmd
+
+
+async def _execute(
+    run: PipelineRun,
+    input_path: Path,
+    *,
+    ieee_format: str,
+    config: PipelineRunConfig,
+) -> None:
+    cmd = _build_cmd(input_path, ieee_format, config)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(_PROJECT_ROOT)

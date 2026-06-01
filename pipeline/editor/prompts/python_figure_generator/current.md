@@ -41,6 +41,9 @@ Given a JSON payload describing what the figure should show, your output must be
 - For trends (e.g. "gradual signal decay"), generate smooth synthetic data consistent with the described behaviour.
 - Never use completely random data that contradicts `data_hints`.
 - Label data series clearly. Use the article title's domain vocabulary for axis labels.
+- When `study_duration_weeks` is set (e.g. 12), time-series x-axis must be **0 through that week only** — never 24 or 25 weeks.
+- Use `quantitative_evidence` and `data_hints` for axis units (e.g. kΩ for impedance, dB or dimensionless SNR — match the caption).
+- Histology plots with two implant groups must plot **both** flexible and rigid bars when the caption compares groups.
 
 ---
 

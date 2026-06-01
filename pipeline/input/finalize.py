@@ -28,8 +28,12 @@ def finalize_without_images(cleaned_text: dict[str, Any]) -> dict[str, Any]:
         for claim in block.get("key_claims") or []:
             if isinstance(claim, str):
                 c = claim.strip()
-                if c and c not in key_claims:
-                    key_claims.append(c)
+            elif isinstance(claim, dict):
+                c = str(claim.get("claim") or claim.get("text") or "").strip()
+            else:
+                c = ""
+            if c and c not in key_claims:
+                key_claims.append(c)
 
     if summary_parts:
         summary = " ".join(summary_parts)

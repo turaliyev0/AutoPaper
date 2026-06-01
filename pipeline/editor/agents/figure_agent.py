@@ -38,6 +38,7 @@ def _build_figure_prompt(
     import json
 
     save_path = output_path.replace("\\", "/")
+    duration = context.manuscript.study_duration_weeks() or 12
     payload = {
         "figure_id": spec.figure_id,
         "caption": spec.caption,
@@ -46,12 +47,18 @@ def _build_figure_prompt(
         "output_path": save_path,
         "article_title": context.title,
         "key_claims": context.manuscript.key_claims[:8],
+        "quantitative_evidence": context.manuscript.quantitative_outcome_lines()[:12],
+        "study_duration_weeks": duration,
         "instructions": (
             "Generate ONLY a self-contained Python script using matplotlib. "
             "The script must save the figure to the exact path in 'output_path' and exit. "
             "On Windows use forward slashes in that path or assign it with a raw string (r'...'). "
             "Do NOT show a GUI window (use matplotlib.use('Agg') at the top). "
-            "Use synthetic / illustrative data consistent with data_hints if real data is unavailable. "
+            "Use synthetic / illustrative data consistent with data_hints and quantitative_evidence. "
+            f"For time-series plots, x-axis must run from week 0 through week {duration} only "
+            f"(do not extend beyond the study duration). "
+            "State SNR units explicitly in the y-axis label (ratio or dB) and match data_hints. "
+            "Histology bar plots must include both flexible and rigid groups when the caption does. "
             "IEEE style: single-column width ~3.5in, 300 dpi, clean axis labels, no title on figure "
             "(caption handles it), legend if needed."
         ),

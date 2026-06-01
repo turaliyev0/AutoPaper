@@ -98,6 +98,21 @@ def collect_integrity_errors(
                     f"Figure {fig.figure_id!r} reuses excluded image {reuse!r}."
                 )
 
+    _META_BAN = re.compile(
+        r"not provided in the (?:experimental )?protocol|"
+        r"provided experimental (?:protocol|design)|"
+        r"was not detailed in the provided",
+        re.IGNORECASE,
+    )
+    for draft in sections:
+        if not draft.success or not draft.latex_body:
+            continue
+        if _META_BAN.search(draft.latex_body):
+            errors.append(
+                f"Section {draft.section_id!r} contains forbidden pipeline/meta commentary "
+                "(e.g. 'not provided in the experimental protocol'). Rewrite required."
+            )
+
     results_draft = next((d for d in sections if d.section_id == "results"), None)
     if results_draft and results_draft.success and results_draft.latex_body:
         body = results_draft.latex_body

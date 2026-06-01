@@ -15,6 +15,7 @@ from pipeline.research.task_kinds import RESULTS_FORBIDDEN_KINDS
 
 from ..assembler import _normalize_body_paragraphs
 from ..context import EditorContext
+from ..section_prose import sanitize_section_latex
 from ..prompts.loader import load_section_writer_instruction
 from ..schemas import (
     CitationEntry,
@@ -62,7 +63,7 @@ def _build_section_payload(
         if part == "summary":
             manuscript_content["summary"] = context.manuscript.summary[:1000]
         elif part == "key_claims":
-            manuscript_content["key_claims"] = context.manuscript.key_claims[:10]
+            manuscript_content["key_claims"] = context.manuscript.key_claims[:16]
         elif part == "experimental_design":
             manuscript_content["experimental_design"] = context.manuscript.experimental_design_bullets()
         elif part == "methods_text":
@@ -103,6 +104,10 @@ def _build_section_payload(
         for c in context.citation_pool[:30]
     ]
 
+    measured = context.manuscript.has_measured_outcomes()
+    outcome_lines = context.manuscript.quantitative_outcome_lines()
+    duration_weeks = context.manuscript.study_duration_weeks()
+
     payload: dict[str, Any] = {
         "section_id": spec.section_id,
         "heading": spec.heading,
@@ -114,7 +119,25 @@ def _build_section_payload(
         "citation_pool": citation_pool,
         "article_title": context.title,
         "available_figure_ids": spec.available_figure_ids,
+        "has_measured_outcomes": measured,
+        "quantitative_evidence": outcome_lines,
+        "study_duration_weeks": duration_weeks,
     }
+    if measured:
+        payload["writing_requirement"] = (
+            "Reported outcomes exist in quantitative_evidence. "
+            "Abstract, Results, Discussion, and Conclusion must cite at least "
+            "three distinct numeric values from that list (with units). "
+            "Do not replace them with vague qualitative-only claims."
+        )
+    else:
+        payload["writing_requirement"] = (
+            "No measured outcome table is in the manuscript source. "
+            "Do not invent impedance, SNR, histology, or p-values. "
+            "State objectives and methods in past tense; frame outcomes as "
+            "anticipated or under evaluation — not as completed findings. "
+            "Never mention missing protocol fields, 'not provided', or the pipeline."
+        )
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
@@ -237,7 +260,9 @@ def _draft_from_json(
         _normalize_backslashes(str(data.get("latex_body") or ""))
     )
 
-    latex_body = _strip_unknown_cites(latex_body, known_citekeys or frozenset())
+    latex_body = sanitize_section_latex(
+        _strip_unknown_cites(latex_body, known_citekeys or frozenset())
+    )
 
     # Sync figures_referenced with refs actually present in the body
     # so the validator never sees a mismatch between declaration and usage.

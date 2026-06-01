@@ -16,6 +16,12 @@ from pipeline.input.image_registry import (
 )
 
 from .bibtex_utils import normalize_bibtex_authors
+from .manuscript_metrics import (
+    flatten_key_claims,
+    has_measured_outcomes,
+    quantitative_outcome_lines,
+    study_duration_weeks,
+)
 from .manuscript_source import build_primary_manuscript_source, source_block_index
 from .schemas import CitationEntry, IeeeFormat
 
@@ -90,7 +96,16 @@ class ManuscriptData:
 
     @property
     def key_claims(self) -> list[str]:
-        return [str(c) for c in (self._data.get("key_claims") or []) if isinstance(c, str)]
+        return flatten_key_claims(self._data)
+
+    def has_measured_outcomes(self) -> bool:
+        return has_measured_outcomes(self._data)
+
+    def quantitative_outcome_lines(self) -> list[str]:
+        return quantitative_outcome_lines(self._data)
+
+    def study_duration_weeks(self) -> int | None:
+        return study_duration_weeks(self._data)
 
     @property
     def text_blocks(self) -> list[dict[str, Any]]:

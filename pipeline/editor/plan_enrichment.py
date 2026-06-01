@@ -6,6 +6,7 @@ import logging
 import re
 
 from .context import EditorContext
+from .manuscript_metrics import has_measured_outcomes as _has_measured_outcomes
 from .schemas import EditorPlan, FigureSpec
 
 logger = logging.getLogger(__name__)
@@ -16,27 +17,49 @@ _RESULTS_MARKERS = re.compile(
     re.IGNORECASE,
 )
 
+_METRIC_LINE = re.compile(
+    r"impedance|snr|signal-to-noise|gfap|iba1|spike|neuron|khz|kω|kohm|"
+    r"\d+\s*week|p\s*<|anova|expected outcome|evaluation metrics",
+    re.IGNORECASE,
+)
 
-def _manuscript_has_results(manuscript) -> bool:
-    """True when step-04 text includes quantitative outcome lines."""
-    chunks: list[str] = [manuscript.summary]
+
+def _manuscript_text_blob(manuscript) -> str:
+    chunks: list[str] = [manuscript.summary or ""]
     for block in manuscript.text_blocks:
         chunks.append(str(block.get("technical_analysis") or ""))
-    return bool(_RESULTS_MARKERS.search("\n".join(chunks)))
+    return "\n".join(chunks)
+
+
+def _manuscript_has_results(manuscript) -> bool:
+    """True when step-04 includes reported outcomes or plottable measured metrics."""
+    if hasattr(manuscript, "has_measured_outcomes") and manuscript.has_measured_outcomes():
+        return True
+    if _RESULTS_MARKERS.search(_manuscript_text_blob(manuscript)):
+        return True
+    return bool(_collect_data_hints(manuscript))
 
 
 def _collect_data_hints(manuscript) -> list[str]:
     hints: list[str] = []
+    seen: set[str] = set()
+
+    def _add_line(raw: str) -> None:
+        line = raw.strip().lstrip("-").strip()
+        if not line or not _METRIC_LINE.search(line):
+            return
+        key = line.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        hints.append(line[:200])
+
     for block in manuscript.text_blocks:
-        text = str(block.get("technical_analysis") or "")
-        if "results summary" in text.lower() or "impedance (flexible)" in text.lower():
-            for line in text.splitlines():
-                line = line.strip().lstrip("-").strip()
-                if line and any(
-                    k in line.lower()
-                    for k in ("impedance", "snr", "spike", "neuron", "gfap", "iba1", "retained", "p <")
-                ):
-                    hints.append(line[:200])
+        for line in str(block.get("technical_analysis") or "").splitlines():
+            _add_line(line)
+    if len(hints) < 4:
+        for line in (manuscript.summary or "").splitlines():
+            _add_line(line)
     return hints[:12]
 
 
@@ -46,6 +69,18 @@ def enrich_editor_plan(plan: EditorPlan, context: EditorContext) -> EditorPlan:
     quantitative results (typical when no usable uploaded images exist).
     """
     if not _manuscript_has_results(context.manuscript):
+        if plan.figures and not context.manuscript.usable_images():
+            before = len(plan.figures)
+            plan.figures = [
+                f
+                for f in plan.figures
+                if (f.reuse_path or "").strip() or f.data_hints
+            ]
+            if before - len(plan.figures):
+                logger.info(
+                    "Dropped %d figure(s): no quantitative manuscript data for synthetic plots",
+                    before - len(plan.figures),
+                )
         return plan
 
     hints = _collect_data_hints(context.manuscript)
@@ -64,16 +99,17 @@ def enrich_editor_plan(plan: EditorPlan, context: EditorContext) -> EditorPlan:
             "Enriched %d figure(s) with manuscript data_hints",
             sum(1 for f in plan.figures if f.data_hints),
         )
-        return plan
-
-    logger.info("Enriching editor plan with synthetic results figures (%d data hints)", len(hints))
-
-    plan.figures = [
+    else:
+        logger.info(
+            "Enriching editor plan with synthetic results figures (%d data hints)",
+            len(hints),
+        )
+        plan.figures = [
         FigureSpec(
             figure_id="fig_impedance_timeline",
             caption=(
                 "Chronic electrode impedance at 1 kHz for flexible polyimide and rigid "
-                "silicon probes over 12 weeks (mean ± SD, n=6 per group)."
+                "silicon probes over the chronic implantation period (mean ± SD)."
             ),
             intent="Line plot: impedance (kΩ) vs week for flexible vs rigid groups.",
             data_hints=[
@@ -97,5 +133,20 @@ def enrich_editor_plan(plan: EditorPlan, context: EditorContext) -> EditorPlan:
             order=2,
             primary_sections=["results"],
         ),
-    ]
+        ]
+
+    if not context.manuscript.usable_images():
+        before = len(plan.figures)
+        plan.figures = [
+            f
+            for f in plan.figures
+            if (f.reuse_path or "").strip() or f.data_hints
+        ]
+        dropped = before - len(plan.figures)
+        if dropped:
+            logger.info(
+                "Dropped %d figure(s) after enrichment: no reuse_path or data_hints",
+                dropped,
+            )
+
     return plan

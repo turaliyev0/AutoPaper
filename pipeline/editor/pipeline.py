@@ -115,8 +115,8 @@ class EditorPipeline:
         if resume and (execution_dir / EXEC_EDITOR_PLAN).is_file():
             plan = load_editor_plan(execution_dir)
             if plan is not None:
-                plan = enrich_editor_plan(
-                    filter_editor_plan_figures(plan, context), context
+                plan = filter_editor_plan_figures(
+                    enrich_editor_plan(plan, context), context
                 )
                 validate_editor_plan(plan, context)
                 write_editor_plan(execution_dir, plan)
@@ -132,8 +132,8 @@ class EditorPipeline:
                 log.arrow("Calling OpenAI Responses API (tool session)…")
                 try:
                     plan = await self._orchestrator.create_plan(context)
-                    plan = enrich_editor_plan(
-                        filter_editor_plan_figures(plan, context), context
+                    plan = filter_editor_plan_figures(
+                        enrich_editor_plan(plan, context), context
                     )
                     validate_editor_plan(plan, context)
                     log.log_plan(plan)
