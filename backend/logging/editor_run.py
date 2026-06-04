@@ -198,5 +198,5 @@ class EditorRunLog:
             print(f"\n[log] Full run log written to: {self._path}", file=sys.stderr, flush=True)
 
 
-# Backward-compatible alias used by the editor pipeline
+# Backward-compatible alias
 RunLog = EditorRunLog

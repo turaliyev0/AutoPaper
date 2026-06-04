@@ -11,7 +11,14 @@ from pipeline.input.image_validation import (
     MismatchAbortError,
     MismatchPolicy,
 )
+from pipeline.input.completeness_gate import (
+    CompletenessPolicy,
+    InputCompletenessAbortError,
+    InputCompletenessPause,
+    INPUT_GAPS_EXIT_CODE,
+)
 from pipeline.input.ingest import run_ingest_pipeline
+from pipeline.input.resume_input import continue_after_input_gaps, input_root_from_manifest
 from pipeline.input.research_continue import ResearchContinuation
 
 _builtin_input = import_module("builtins").input
@@ -153,7 +160,80 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Stop when joiner reports figure–text mismatches (no prompt).",
     )
+    gaps = parser.add_mutually_exclusive_group()
+    gaps.add_argument(
+        "--force-continue-on-input-gaps",
+        action="store_true",
+        help="Proceed when input is incomplete without prompting (not recommended).",
+    )
+    gaps.add_argument(
+        "--strict-input-gaps",
+        action="store_true",
+        help="Stop when required input data is missing (no prompt).",
+    )
+    parser.add_argument(
+        "--continue-after-gaps",
+        action="store_true",
+        help=(
+            "Resume from an existing execution dir after user supplements "
+            "(requires --execution-dir and --input)."
+        ),
+    )
+    parser.add_argument(
+        "--supplement-json",
+        default=None,
+        metavar="PATH",
+        help="JSON file with { \"answers\": { \"gap_id\": \"text\" } } for --continue-after-gaps.",
+    )
     args = parser.parse_args(argv)
+
+    if args.continue_after_gaps:
+        if not args.execution_dir or not args.input:
+            print(
+                "--continue-after-gaps requires both --execution-dir and --input.",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
+        run_path = Path(args.execution_dir).expanduser().resolve()
+        root = Path(args.input).expanduser().resolve()
+        supplement_answers: dict[str, str] | None = None
+        if args.supplement_json:
+            raw = json.loads(Path(args.supplement_json).read_text(encoding="utf-8"))
+            if isinstance(raw.get("answers"), dict):
+                supplement_answers = {str(k): str(v) for k, v in raw["answers"].items()}
+            elif isinstance(raw, dict):
+                supplement_answers = {str(k): str(v) for k, v in raw.items()}
+        if args.no_research:
+            research_mode = ResearchContinuation.OFF
+        elif args.full_research:
+            research_mode = ResearchContinuation.FULL
+        else:
+            research_mode = ResearchContinuation.PLAN
+        if args.strict_input_gaps:
+            gap_policy = CompletenessPolicy.STRICT
+        elif args.force_continue_on_input_gaps:
+            gap_policy = CompletenessPolicy.CONTINUE
+        else:
+            gap_policy = CompletenessPolicy.AUTO
+        try:
+            continue_after_input_gaps(
+                root,
+                run_path,
+                research=research_mode,
+                supplement_answers=supplement_answers,
+                completeness_policy=gap_policy,
+            )
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+        print(f"Run directory: {run_path.resolve()}")
+        if args.ieee_edit:
+            try:
+                _run_editor(run_path, args.ieee_format, verbose_log=getattr(args, "log_editor", True))
+            except Exception as exc:
+                print(f"Editor pipeline failed: {exc}", file=sys.stderr)
+                raise SystemExit(1) from exc
+        return
 
     if args.editor_only:
         if not args.execution_dir:
@@ -199,18 +279,30 @@ def main(argv: list[str] | None = None) -> None:
     else:
         mismatch_policy = MismatchPolicy.AUTO
 
+    if args.strict_input_gaps:
+        completeness_policy = CompletenessPolicy.STRICT
+    elif args.force_continue_on_input_gaps:
+        completeness_policy = CompletenessPolicy.CONTINUE
+    else:
+        completeness_policy = CompletenessPolicy.AUTO
+
     try:
         _, run_path = run_ingest_pipeline(
             root,
             output_root=out_arg,
             research=research_mode,
             mismatch_policy=mismatch_policy,
+            completeness_policy=completeness_policy,
             stdin_is_tty=sys.stdin.isatty(),
         )
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
-    except (ImageValidationError, MismatchAbortError) as exc:
+    except InputCompletenessPause as exc:
+        print(str(exc), file=sys.stderr)
+        print(f"Run directory: {exc.run_path.resolve()}")
+        raise SystemExit(INPUT_GAPS_EXIT_CODE) from exc
+    except (InputCompletenessAbortError, ImageValidationError, MismatchAbortError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
     except (RuntimeError, ImportError, ValueError, json.JSONDecodeError) as exc:

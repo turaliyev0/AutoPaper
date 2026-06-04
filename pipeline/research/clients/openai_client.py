@@ -74,13 +74,18 @@ class OpenAIClient:
         self,
         settings: Settings,
         *,
-        api_key: str | None = None,
-        model: str | None = None,
+        api_key: str,
+        model: str,
     ) -> None:
         self._settings = settings
-        key = api_key or settings.orchestrator_api_key
+        key = api_key.strip()
+        if not key:
+            raise ValueError("OpenAIClient requires a non-empty api_key")
+        model_name = model.strip()
+        if not model_name:
+            raise ValueError("OpenAIClient requires a non-empty model")
         self._client = AsyncOpenAI(api_key=key)
-        self._model = model or settings.orchestrator_model
+        self._model = model_name
 
     @llm_retry(max_attempts=3)
     async def generate_json(

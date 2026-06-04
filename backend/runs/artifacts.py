@@ -18,6 +18,10 @@ ALLOWED_EXACT = frozenset({
     "08_research_index.meta.json",
     "06_gathered_research.json",
     "05_orchestrator_plan.json",
+    "05_orchestrator_followups.json",
+    "04_input_gaps.json",
+    "04_user_supplements.json",
+    "04_supplement_answers.json",
     EDITOR_RUN_LOG,
     "00_run_manifest.json",
     "13_ieee_manuscript/main.tex",
@@ -31,6 +35,7 @@ ALLOWED_PREFIXES = (
     "10_sections/",
     "11_figures/",
     "12_editor_validation/",
+    "12_editor_validation/manuscript_qa_report.json",
     "13_ieee_manuscript/",
 )
 

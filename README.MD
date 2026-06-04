@@ -43,6 +43,8 @@ AutoPaper/
 | 2 | `pipeline.research` — orchestrator plans tasks → parallel search → validate → index | `05–08_*.json/md` |
 | 3 | `pipeline.editor` — plan sections, write LaTeX, generate figures, validate, compile PDF | `09–13_*/` |
 
+**Flow diagram (PDF):** [docs/pipeline_flow.pdf](docs/pipeline_flow.pdf) — regenerate with `python scripts/generate_pipeline_flow_pdf.py`
+
 ---
 
 ## Quick start
@@ -186,11 +188,17 @@ npm run build
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | ✓ | OpenAI API key (research + editor orchestrators) |
-| `GOOGLE_API_KEY` | ✓ | Google / Gemini API key (search, validator, editor) |
-| `ANTHROPIC_API_KEY` | | Claude key (reserved; `claude_search` agent is disabled in this build) |
+| `GOOGLE_API_KEY` | ✓ | Google / Gemini API key (search, index, section writer, figures) |
+| `ANTHROPIC_API_KEY` | ✓ | Claude for research validator + manuscript QA |
 | `EDITOR_IEEE_FORMAT` | | Default output format: `journal` or `conference` |
 | `EDITOR_ORCHESTRATOR_MODEL` | | OpenAI model for editor orchestrator (default: `gpt-4o`) |
 | `EDITOR_SECTION_WRITER_MODEL` | | Gemini model for section writer (default: `gemini-2.5-flash`) |
-| `EDITOR_VALIDATOR_MODEL` | | Gemini model for IEEE validator (default: `gemini-2.5-flash`) |
+| `EDITOR_FIGURE_MODEL` | | Gemini model for figure code (default: `gemini-2.5-flash`) |
+| `EDITOR_MANUSCRIPT_QA_MODEL` | | Claude model for holistic manuscript QA (default: `claude-sonnet-4-20250514`) |
+| `EDITOR_QA_SCORE_THRESHOLD` | | QA score threshold for rewrites (default: `70`) |
+| `EDITOR_QA_MAX_ROUNDS` | | Holistic QA revision rounds (default: `3`) |
 | `RESEARCH_ORCHESTRATOR_MODEL` | | OpenAI model for research orchestrator (default: `gpt-4o`) |
-| `RESEARCH_GEMINI_SEARCH_MODEL` | | Gemini model for search agent (default: `gemini-2.0-flash`) |
+| `RESEARCH_GEMINI_SEARCH_MODEL` | | Gemini model for literature search (default: `gemini-2.0-flash`) |
+| `RESEARCH_OPENAI_SEARCH_MODEL` | | Gemini model for critique search agent (default: `gemini-2.0-flash`) |
+| `RESEARCH_INDEX_MODEL` | | Gemini model for research index (default: `gemini-2.0-flash`) |
+| `RESEARCH_VALIDATOR_MODEL` | | Claude model for research validation (default: `claude-sonnet-4-20250514`) |

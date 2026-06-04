@@ -65,13 +65,11 @@ def resolve_api_key(
     specific = os.environ.get(api_key_var(agent), "").strip()
     if specific:
         return specific
-    for legacy in ("GOOGLE_API_KEY", "GEMINI_API_KEY"):
-        value = os.environ.get(legacy, "").strip()
-        if value:
-            return value
+    shared = os.environ.get("GOOGLE_API_KEY", "").strip()
+    if shared:
+        return shared
     raise RuntimeError(
-        f"Missing API key for {agent.value}: set {api_key_var(agent)} "
-        f"(or GOOGLE_API_KEY / GEMINI_API_KEY) in .env"
+        f"Missing API key for {agent.value}: set {api_key_var(agent)} or GOOGLE_API_KEY in .env"
     )
 
 
@@ -86,10 +84,6 @@ def resolve_model(
     specific = os.environ.get(model_var(agent), "").strip()
     if specific:
         return specific
-    legacy = os.environ.get("GEMINI_MODEL", "").strip()
-    if legacy:
-        return legacy
     raise RuntimeError(
-        f"Missing model for {agent.value}: set {model_var(agent)} "
-        f"(or GEMINI_MODEL) in .env"
+        f"Missing model for {agent.value}: set {model_var(agent)} in .env"
     )

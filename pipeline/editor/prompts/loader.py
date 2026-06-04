@@ -22,8 +22,8 @@ def load_section_writer_instruction() -> str:
     return _load("openai_section_writer")
 
 
-def load_ieee_validator_instruction() -> str:
-    return _load("gemini_ieee_validator")
+def load_manuscript_validator_instruction() -> str:
+    return _load("gemini_manuscript_validator")
 
 
 def load_figure_generator_instruction() -> str:

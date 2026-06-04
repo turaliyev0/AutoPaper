@@ -20,7 +20,6 @@ from ..prompts.loader import load_section_writer_instruction
 from ..schemas import (
     CitationEntry,
     EditorPlan,
-    EditorValidationResult,
     SectionDraft,
     SectionSpec,
 )
@@ -182,21 +181,11 @@ class SectionWriterAgent:
         context: EditorContext,
         *,
         prior: SectionDraft,
-        validation: EditorValidationResult,
+        qa_revision: dict[str, Any],
     ) -> SectionDraft:
         revision = {
-            "mode": "ieee_validator_revision",
-            "validation_score": validation.score,
-            "validation_verdict": validation.verdict,
-            "issues_to_fix": validation.issues,
-            "validator_notes": validation.notes,
+            **qa_revision,
             "previous_latex_body": prior.latex_body[:8000],
-            "instruction": (
-                "Rewrite this section to fix every listed validation issue. "
-                "Use IEEE numeric \\cite{key} only from citation_pool. "
-                "Use Fig.~\\ref{fig:ID} for figures — never hardcoded numbers or raw image paths. "
-                "Remove any pipeline/internal tool terms. Report original study data in Results only."
-            ),
         }
         return await self._generate(spec, context, revision=revision)
 
@@ -211,11 +200,21 @@ class SectionWriterAgent:
         payload = json.loads(_build_section_payload(spec, context))
         if revision:
             payload["revision"] = revision
+            if revision.get("mode") == "manuscript_qa_revision" and spec.section_id == "results":
+                payload["writing_requirement"] = (
+                    "Coordinated manuscript QA: Results must report numeric findings "
+                    "(with units) aligned with figure_specs data_hints. Reference each "
+                    "assigned figure with Fig.~\\ref{fig:ID}. Do not leave Results qualitative-only."
+                )
         user = json.dumps(payload, indent=2, ensure_ascii=False)
         label = (
-            f"section_writer:rewrite:{spec.section_id}"
-            if revision
-            else f"section_writer:{spec.section_id}"
+            f"section_writer:qa_rewrite:{spec.section_id}"
+            if revision and revision.get("mode") == "manuscript_qa_revision"
+            else (
+                f"section_writer:rewrite:{spec.section_id}"
+                if revision
+                else f"section_writer:{spec.section_id}"
+            )
         )
         try:
             data = await self._client.generate_json(

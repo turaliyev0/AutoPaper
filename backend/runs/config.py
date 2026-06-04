@@ -12,3 +12,4 @@ class PipelineRunConfig:
     log_editor: bool = True
     ingest_only: bool = False
     mismatch_policy: str = "continue"  # continue | strict
+    completeness_policy: str = "auto"  # auto | continue | strict

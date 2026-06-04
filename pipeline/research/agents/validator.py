@@ -8,7 +8,7 @@ import logging
 import re
 from pathlib import Path
 
-from ..clients.gemini_client import validator_client
+from ..clients.evaluator_client import research_validator_client
 from ..config import Settings
 from ..task_kinds import TaskKind, classify_task, provenance_for_kind
 from ..prompts.loader import load_research_validator_instruction
@@ -40,31 +40,29 @@ def _split_sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
-def _fallback_overview(result: GatheredTaskResult, *, max_sentences: int = 8) -> str:
-    """Cheap overview when the validator LLM omits the field."""
+def _overview_from_summary(result: GatheredTaskResult, *, max_sentences: int = 8) -> str:
+    """Build overview sentences from the search summary when the validator omits overview."""
     text = (result.summary or "").strip()
     if not text:
         return "This research task did not produce a usable summary."
     sentences = _split_sentences(text)
     if not sentences:
         return text[:900]
-    picked = sentences[:max_sentences]
-    return " ".join(picked)
+    return " ".join(sentences[:max_sentences])
 
 
 def _coerce_overview(raw: str, result: GatheredTaskResult) -> str:
-    """Normalize to 5–10 sentences; fall back to summary-derived text if needed."""
+    """Normalize to 5–10 sentences."""
     overview = str(raw or "").strip()
     if not overview:
-        return _fallback_overview(result)
+        overview = _overview_from_summary(result)
 
     sentences = _split_sentences(overview)
     if len(sentences) < 5:
-        fb = _fallback_overview(result)
-        fb_sentences = _split_sentences(fb)
+        extra = _split_sentences(_overview_from_summary(result))
         merged: list[str] = []
         seen: set[str] = set()
-        for s in sentences + fb_sentences:
+        for s in sentences + extra:
             key = s.lower()
             if key in seen:
                 continue
@@ -72,9 +70,7 @@ def _coerce_overview(raw: str, result: GatheredTaskResult) -> str:
             merged.append(s)
             if len(merged) >= 10:
                 break
-        if len(merged) < 5:
-            merged = (_split_sentences(fb) or [fb])[:10]
-        sentences = merged
+        sentences = merged if len(merged) >= 5 else extra[:10]
 
     if len(sentences) > 10:
         sentences = sentences[:10]
@@ -170,7 +166,7 @@ def _deterministic_verdict(result: GatheredTaskResult) -> dict[str, str | list[s
 
 class ResearchValidator:
     def __init__(self, settings: Settings) -> None:
-        self._client = validator_client(settings)
+        self._client = research_validator_client(settings)
         self._system = load_research_validator_instruction()
 
     async def validate_task(

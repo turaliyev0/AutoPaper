@@ -85,7 +85,7 @@ class OrchestratorAgent:
         search_count = sum(
             1
             for a in plan.execution_strategy.target_agents
-            if a.agent_id in ACTIVE_SEARCH_AGENT_IDS or a.agent_id == "gemini_explorer"
+            if a.agent_id in ACTIVE_SEARCH_AGENT_IDS
         )
         logger.info(
             "Orchestrator plan: topic=%r, active_search_agents=%d (via tools)",

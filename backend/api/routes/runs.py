@@ -30,6 +30,7 @@ from backend.runs import (
     read_artifact_json,
     resolve_artifact_file,
     run_pipeline,
+    run_pipeline_continue,
 )
 
 router = APIRouter(prefix="/api", tags=["Runs"])
@@ -107,6 +108,113 @@ class ArtifactListResponse(BaseModel):
 class PatchOk(BaseModel):
     ok: bool
     path: str
+
+
+class InputGapsResponse(BaseModel):
+    blocking: bool
+    gaps: list[dict[str, str]]
+
+
+class SupplementRequest(BaseModel):
+    answers: dict[str, str] = Field(
+        description="Map of gap id → user text (see GET /api/runs/{id}/input-gaps)",
+    )
+
+
+class SupplementResponse(BaseModel):
+    ok: bool
+    status: str
+    message: str
+
+
+class ResearchTaskSummary(BaseModel):
+    slug: str
+    index: int | None = None
+    agent_id: str = ""
+    task: str = ""
+    success: bool = True
+    verdict: str = ""
+    coverage: str = ""
+    overview: str = ""
+
+
+class ResearchOverviewResponse(BaseModel):
+    available: bool
+    task_count: int = 0
+    validation_pass: int = 0
+    validation_warn: int = 0
+    validation_fail: int = 0
+    has_plan: bool = False
+    has_index: bool = False
+    main_topic: str = ""
+
+
+class ResearchIndexResponse(BaseModel):
+    markdown: str = ""
+    meta: dict | None = None
+
+
+class ResearchTaskDetailResponse(BaseModel):
+    slug: str
+    task: dict
+    validation: dict | None = None
+
+
+def _execution_dir(run) -> Path:
+    if not run.execution_dir:
+        raise HTTPException(404, "Execution directory not ready")
+    root = Path(run.execution_dir)
+    if not root.is_dir():
+        raise HTTPException(404, "Execution directory not found")
+    return root
+
+
+def _research_available(root: Path) -> bool:
+    return (root / "06_research" / "manifest.json").is_file()
+
+
+def _merge_research_tasks(root: Path) -> list[dict]:
+    research_manifest = read_artifact_json(str(root), "06_research/manifest.json")
+    validation_manifest: dict = {}
+    val_path = root / "07_validation" / "manifest.json"
+    if val_path.is_file():
+        validation_manifest = json.loads(val_path.read_text(encoding="utf-8"))
+
+    val_by_slug = {
+        str(v.get("slug") or ""): v
+        for v in (validation_manifest.get("tasks") or [])
+        if isinstance(v, dict)
+    }
+
+    merged: list[dict] = []
+    for entry in research_manifest.get("tasks") or []:
+        if not isinstance(entry, dict):
+            continue
+        slug = str(entry.get("slug") or "")
+        val = val_by_slug.get(slug) or {}
+        val_file = str(val.get("filename") or "")
+        overview = ""
+        if val_file:
+            try:
+                vdata = read_artifact_json(str(root), f"07_validation/{val_file}")
+                overview = str(vdata.get("overview") or "")[:500]
+            except HTTPException:
+                overview = ""
+        merged.append(
+            {
+                "slug": slug,
+                "index": entry.get("index"),
+                "agent_id": str(entry.get("agent_id") or val.get("agent_id") or ""),
+                "task": str(entry.get("task") or "")[:300],
+                "success": bool(entry.get("success", True)),
+                "verdict": str(val.get("verdict") or ""),
+                "coverage": str(val.get("coverage") or ""),
+                "overview": overview,
+                "research_file": str(entry.get("filename") or ""),
+                "validation_file": val_file,
+            }
+        )
+    return merged
 
 
 @router.get("/runs", response_model=list[RunSummary], summary="List all runs")
@@ -197,6 +305,240 @@ def patch_standardized(
         raise HTTPException(404, "04_final_standardized.json not available yet")
     path.write_text(json.dumps(body, indent=2, ensure_ascii=False), encoding="utf-8")
     return {"ok": True, "path": str(path)}
+
+
+@router.get(
+    "/runs/{run_id}/input-gaps",
+    response_model=InputGapsResponse,
+    summary="Questions to answer when input is incomplete (status awaiting_input)",
+)
+def get_input_gaps(run_id: str, _user: UserPublic = Depends(get_current_user)) -> dict:
+    run = _get_run_or_404(run_id)
+    if not run.execution_dir:
+        raise HTTPException(404, "Execution directory not ready")
+    gaps_path = Path(run.execution_dir) / "04_input_gaps.json"
+    if not gaps_path.is_file():
+        raise HTTPException(404, "No input gaps file — run is not waiting for supplements")
+    try:
+        return json.loads(gaps_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(500, f"Invalid gaps file: {exc}") from exc
+
+
+@router.post(
+    "/runs/{run_id}/supplement",
+    response_model=SupplementResponse,
+    summary="Submit answers for missing input and resume the pipeline",
+)
+async def submit_supplement(
+    run_id: str,
+    body: SupplementRequest,
+    background_tasks: BackgroundTasks,
+    _user: UserPublic = Depends(get_current_user),
+) -> dict:
+    from pipeline.input.completeness_gate import load_gaps_file
+
+    run = _get_run_or_404(run_id)
+    if run.status != RunStatus.AWAITING_INPUT:
+        raise HTTPException(
+            409,
+            f"Run is not awaiting input (status={run.status.value})",
+        )
+    if not run.execution_dir:
+        raise HTTPException(409, "Execution directory unknown")
+
+    execution_dir = Path(run.execution_dir)
+    gaps_report = load_gaps_file(execution_dir)
+    if gaps_report is None:
+        raise HTTPException(404, "04_input_gaps.json not found")
+
+    missing = [
+        g.id
+        for g in gaps_report.gaps
+        if g.severity == "required" and not str(body.answers.get(g.id) or "").strip()
+    ]
+    if missing:
+        raise HTTPException(
+            422,
+            f"Missing required answers for: {', '.join(missing)}",
+        )
+
+    input_path = Path(run.input_path) if run.input_path else None
+    if input_path is None or not input_path.is_dir():
+        from pipeline.input.resume_input import input_root_from_manifest
+
+        input_path = input_root_from_manifest(execution_dir)
+    if input_path is None or not input_path.is_dir():
+        raise HTTPException(409, "Original upload folder not found; cannot apply supplements")
+
+    supplement_path = execution_dir / "04_supplement_answers.json"
+    supplement_path.write_text(
+        json.dumps({"answers": body.answers}, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    pipe_cfg = PipelineRunConfig(
+        full_research=True,
+        ieee_edit=True,
+        log_editor=True,
+        ingest_only=False,
+        mismatch_policy="continue",
+        completeness_policy="auto",
+    )
+
+    background_tasks.add_task(
+        run_pipeline_continue,
+        run,
+        input_path,
+        execution_dir,
+        ieee_format=run.ieee_format,
+        config=pipe_cfg,
+        supplement_json=supplement_path,
+    )
+
+    return {
+        "ok": True,
+        "status": "running",
+        "message": "Supplements accepted; pipeline resuming from research stage.",
+    }
+
+
+@router.get(
+    "/runs/{run_id}/research",
+    response_model=ResearchOverviewResponse,
+    summary="Research stage overview (tasks, validation counts, plan topic)",
+)
+def get_research_overview(
+    run_id: str,
+    _user: UserPublic = Depends(get_current_user),
+) -> dict:
+    run = _get_run_or_404(run_id)
+    root = _execution_dir(run)
+    if not _research_available(root):
+        return ResearchOverviewResponse(available=False).model_dump()
+
+    plan: dict = {}
+    plan_path = root / "05_orchestrator_plan.json"
+    if plan_path.is_file():
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+
+    tasks = _merge_research_tasks(root)
+    v_pass = sum(1 for t in tasks if t.get("verdict") == "pass")
+    v_warn = sum(1 for t in tasks if t.get("verdict") == "warn")
+    v_fail = sum(1 for t in tasks if t.get("verdict") == "fail")
+
+    return ResearchOverviewResponse(
+        available=True,
+        task_count=len(tasks),
+        validation_pass=v_pass,
+        validation_warn=v_warn,
+        validation_fail=v_fail,
+        has_plan=plan_path.is_file(),
+        has_index=(root / "08_research_index.md").is_file(),
+        main_topic=str((plan.get("research_goal") or {}).get("main_topic") or plan.get("main_topic") or ""),
+    ).model_dump()
+
+
+@router.get("/runs/{run_id}/research/plan", summary="05_orchestrator_plan.json")
+def get_research_plan(run_id: str, _user: UserPublic = Depends(get_current_user)) -> dict:
+    run = _get_run_or_404(run_id)
+    return read_artifact_json(run.execution_dir, "05_orchestrator_plan.json")
+
+
+@router.get(
+    "/runs/{run_id}/research/index",
+    response_model=ResearchIndexResponse,
+    summary="08_research_index.md catalog (+ optional meta JSON)",
+)
+def get_research_index(
+    run_id: str,
+    _user: UserPublic = Depends(get_current_user),
+) -> dict:
+    run = _get_run_or_404(run_id)
+    root = _execution_dir(run)
+    index_path = root / "08_research_index.md"
+    if not index_path.is_file():
+        raise HTTPException(404, "08_research_index.md not available yet")
+    markdown = index_path.read_text(encoding="utf-8")
+    meta = None
+    meta_path = root / "08_research_index.meta.json"
+    if meta_path.is_file():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    return {"markdown": markdown, "meta": meta}
+
+
+@router.get(
+    "/runs/{run_id}/research/tasks",
+    response_model=list[ResearchTaskSummary],
+    summary="List research tasks merged with validation verdicts",
+)
+def list_research_tasks(
+    run_id: str,
+    _user: UserPublic = Depends(get_current_user),
+) -> list[dict]:
+    run = _get_run_or_404(run_id)
+    root = _execution_dir(run)
+    if not _research_available(root):
+        raise HTTPException(404, "Research stage not available yet")
+    return _merge_research_tasks(root)
+
+
+@router.get(
+    "/runs/{run_id}/research/tasks/{slug}",
+    response_model=ResearchTaskDetailResponse,
+    summary="One research task JSON plus its validation record",
+)
+def get_research_task(
+    run_id: str,
+    slug: str,
+    _user: UserPublic = Depends(get_current_user),
+) -> dict:
+    run = _get_run_or_404(run_id)
+    root = _execution_dir(run)
+    if not _research_available(root):
+        raise HTTPException(404, "Research stage not available yet")
+
+    research_manifest = read_artifact_json(str(root), "06_research/manifest.json")
+    match = None
+    for entry in research_manifest.get("tasks") or []:
+        if isinstance(entry, dict) and str(entry.get("slug") or "") == slug:
+            match = entry
+            break
+    if match is None:
+        raise HTTPException(404, f"Research task not found: {slug}")
+
+    task_file = str(match.get("filename") or "")
+    task_data = read_artifact_json(str(root), f"06_research/{task_file}")
+
+    validation_data = None
+    val_path = root / "07_validation" / f"{slug}.validation.json"
+    if not val_path.is_file():
+        for entry in (read_artifact_json(str(root), "07_validation/manifest.json").get("tasks") or []):
+            if isinstance(entry, dict) and str(entry.get("slug") or "") == slug:
+                vf = str(entry.get("filename") or "")
+                if vf:
+                    validation_data = read_artifact_json(str(root), f"07_validation/{vf}")
+                break
+    else:
+        validation_data = json.loads(val_path.read_text(encoding="utf-8"))
+
+    return {
+        "slug": slug,
+        "task": task_data,
+        "validation": validation_data,
+    }
+
+
+@router.get(
+    "/runs/{run_id}/manuscript-qa",
+    summary="Holistic editor QA report (12_editor_validation/manuscript_qa_report.json)",
+)
+def get_manuscript_qa(run_id: str, _user: UserPublic = Depends(get_current_user)) -> dict:
+    run = _get_run_or_404(run_id)
+    return read_artifact_json(
+        run.execution_dir,
+        "12_editor_validation/manuscript_qa_report.json",
+    )
 
 
 @router.get(
@@ -332,9 +674,12 @@ async def start_run(
         log_editor=_form_bool(log_editor),
         ingest_only=_form_bool(ingest_only),
         mismatch_policy="continue" if mismatch_policy == "prompt" else mismatch_policy,
+        completeness_policy="auto",
     )
 
     run = store.create(paper_title=title.strip(), ieee_format=ieee_format)
+    run.input_path = str(input_path.resolve())
+    store.persist(run)
     background_tasks.add_task(
         run_pipeline,
         run,

@@ -45,17 +45,13 @@ logger = logging.getLogger(__name__)
 
 PLAN_FILENAME = "05_orchestrator_plan.json"
 
-_LEGACY_SEARCH_IDS: dict[str, str] = {
-    "gemini_explorer": "gemini_search",
-}
-
 
 def _print_research_plan(plan: OrchestratorPlan) -> None:
     """Emit planned literature tasks for the UI (SSE step/log stream)."""
     print(f"[STEP] Research focus: {plan.research_goal.main_topic}", flush=True)
     n_search = 0
     for target in plan.execution_strategy.target_agents:
-        agent_id = _LEGACY_SEARCH_IDS.get(target.agent_id, target.agent_id)
+        agent_id = target.agent_id
         if agent_id not in ACTIVE_SEARCH_AGENT_IDS:
             continue
         label = agent_id.replace("_", " ")
@@ -91,7 +87,11 @@ class ResearchPipeline:
         self._settings = settings
         self._plan_only = plan_only
         self._orchestrator = OrchestratorAgent(
-            OpenAIClient(settings),
+            OpenAIClient(
+                settings,
+                api_key=settings.orchestrator_api_key,
+                model=settings.orchestrator_model,
+            ),
             orchestrator_followup_client(settings),
             settings=settings,
         )

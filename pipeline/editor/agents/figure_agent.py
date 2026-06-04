@@ -273,6 +273,8 @@ class FigureAgent:
         spec: FigureSpec,
         figures_dir: Path,
         context: EditorContext,
+        *,
+        qa_feedback: str = "",
     ) -> FigureResult:
         if spec.reuse_path and spec.reuse_path.strip() in context.manuscript.excluded_paths():
             logger.warning(
@@ -322,7 +324,7 @@ class FigureAgent:
         max_retries = min(self._settings.editor_figure_max_retries, 3)
         timeout = self._settings.editor_figure_exec_timeout
 
-        error_feedback = ""
+        error_feedback = qa_feedback.strip()
         code = ""
         for attempt in range(max_retries):
             logger.info("FigureAgent: generating %s (attempt %d)", spec.figure_id, attempt + 1)

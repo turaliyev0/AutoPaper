@@ -162,7 +162,7 @@ class FigureResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Editor validation (produced by IeeeValidatorAgent)
+# Editor validation (derived from holistic manuscript QA)
 # ---------------------------------------------------------------------------
 
 
@@ -181,6 +181,47 @@ class EditorValidationResult(BaseModel):
 
     def needs_rewrite(self, *, threshold: int) -> bool:
         return self.verdict == "fail" or self.score < threshold
+
+
+class SectionRevisionAction(BaseModel):
+    """Holistic QA: fixes needed in one section (may depend on other sections/figures)."""
+
+    section_id: str
+    severity: Literal["critical", "major", "minor"] = "major"
+    issues: list[str] = Field(default_factory=list)
+    coordination_notes: str = ""
+
+
+class FigureRevisionAction(BaseModel):
+    """Holistic QA: regenerate or adjust one figure."""
+
+    figure_id: str
+    issues: list[str] = Field(default_factory=list)
+
+
+class ManuscriptQaReport(BaseModel):
+    """Whole-manuscript review — cross-section coherence + figure alignment."""
+
+    verdict: Literal["pass", "warn", "fail"] = "pass"
+    score: int = 100
+    document_issues: list[str] = Field(default_factory=list)
+    section_actions: list[SectionRevisionAction] = Field(default_factory=list)
+    figure_actions: list[FigureRevisionAction] = Field(default_factory=list)
+    notes: str = ""
+    revision_round: int = 0
+
+    def needs_revision(self, *, threshold: int) -> bool:
+        if self.verdict == "fail":
+            return True
+        if self.score < threshold:
+            return True
+        if any(a.severity == "critical" for a in self.section_actions):
+            return True
+        if any(a.severity == "major" for a in self.section_actions):
+            return True
+        if self.figure_actions and self.score < 85:
+            return True
+        return False
 
 
 # ---------------------------------------------------------------------------

@@ -43,13 +43,18 @@ class GeminiClient:
         self,
         settings: Settings,
         *,
-        api_key: str | None = None,
-        model: str | None = None,
+        api_key: str,
+        model: str,
     ) -> None:
         self._settings = settings
-        key = api_key or settings.gemini_search_api_key
+        key = api_key.strip()
+        if not key:
+            raise ValueError("GeminiClient requires a non-empty api_key")
+        model_name = model.strip()
+        if not model_name:
+            raise ValueError("GeminiClient requires a non-empty model")
         self._client = genai.Client(api_key=key)
-        self._model = model or settings.default_gemini_model
+        self._model = model_name
 
     @llm_retry(max_attempts=3)
     async def generate_json(
@@ -172,14 +177,6 @@ def gemini_search_client(settings: Settings) -> GeminiClient:
         settings,
         api_key=settings.gemini_search_api_key,
         model=settings.gemini_search_model,
-    )
-
-
-def validator_client(settings: Settings) -> GeminiClient:
-    return GeminiClient(
-        settings,
-        api_key=settings.research_validator_api_key,
-        model=settings.research_validator_model,
     )
 
 

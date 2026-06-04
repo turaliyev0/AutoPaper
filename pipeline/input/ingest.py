@@ -10,6 +10,18 @@ from .image_validation import (
     collect_mismatch_warnings,
     resolve_mismatch_continuation,
 )
+from .completeness_gate import (
+    CompletenessPolicy,
+    InputCompletenessAbortError,
+    InputCompletenessPause,
+    resolve_completeness_continuation,
+)
+from .completeness import analyze_completeness
+from .supplement import (
+    persist_supplement_answers,
+    refresh_standardized_after_supplements,
+    write_supplement_files,
+)
 from .finalize import finalize_without_images
 from .layout import IMAGE_SUFFIXES, TEXT_GLOB_ORDER, ensure_input_layout
 from .research_continue import ResearchContinuation, continue_research
@@ -95,6 +107,8 @@ def run_ingest_pipeline(
     output_root: Path | None = None,
     research: ResearchContinuation = ResearchContinuation.PLAN,
     mismatch_policy: MismatchPolicy = MismatchPolicy.AUTO,
+    completeness_policy: CompletenessPolicy = CompletenessPolicy.AUTO,
+    supplement_answers: dict[str, str] | None = None,
     stdin_is_tty: bool | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """
@@ -111,6 +125,8 @@ def run_ingest_pipeline(
 
     After step 03, unreadable images raise :class:`~pipeline.input.image_validation.ImageValidationError`.
     After step 04, non-empty ``mismatch_flags`` follow ``mismatch_policy`` (prompt / abort / continue).
+    After step 04, :func:`analyze_completeness` may prompt for missing data (``completeness_policy``)
+    before research starts.
 
     Returns ``(bundle, run_path)``.
     """
@@ -185,6 +201,29 @@ def run_ingest_pipeline(
         policy=mismatch_policy,
         is_tty=stdin_is_tty,
     )
+
+    report_before = analyze_completeness(final, bundle)
+    gap_targets = {g.id: g.target_path for g in report_before.gaps}
+    answers = resolve_completeness_continuation(
+        final,
+        bundle,
+        input_root=root,
+        run_path=run_path,
+        policy=completeness_policy,
+        is_tty=stdin_is_tty,
+        prefilled_answers=supplement_answers,
+    )
+    if answers:
+        print("[STEP] Applying user supplements to input", flush=True)
+        write_supplement_files(root, answers, gap_targets=gap_targets)
+        persist_supplement_answers(run_path, answers)
+        final = refresh_standardized_after_supplements(root, run_path)
+        report_after = analyze_completeness(final, bundle)
+        if report_after.has_blocking_gaps and completeness_policy is CompletenessPolicy.STRICT:
+            raise InputCompletenessAbortError(
+                report_after,
+                reason="Input still incomplete after supplements (--strict-input-gaps).",
+            )
 
     continue_research(run_path, mode=research)
 

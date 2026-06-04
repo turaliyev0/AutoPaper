@@ -38,7 +38,7 @@ class ExecutionStrategy(BaseModel):
     @classmethod
     def must_include_search_and_synthesis(cls, agents: list[TargetAgent]) -> list[TargetAgent]:
         ids = {a.agent_id for a in agents}
-        has_search = bool(ids & ACTIVE_SEARCH_AGENT_IDS) or "gemini_explorer" in ids
+        has_search = bool(ids & ACTIVE_SEARCH_AGENT_IDS)
         has_validator = bool(ids & _VALIDATOR_IDS)
         if not has_search:
             raise ValueError(

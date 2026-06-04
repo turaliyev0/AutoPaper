@@ -8,11 +8,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from pipeline.research.clients.evaluator_client import manuscript_qa_client
 from pipeline.research.clients.gemini_client import GeminiClient
 from pipeline.research.clients.openai_client import OpenAIClient
 
 from .agents.figure_agent import FigureAgent
-from .agents.ieee_validator import IeeeValidatorAgent
+from .agents.manuscript_qa import ManuscriptQaAgent
 from .agents.orchestrator import EditorOrchestratorAgent
 from .agents.section_writer import SectionCoordinator, SectionWriterAgent
 from .assembler import assemble_manuscript
@@ -21,6 +22,7 @@ from .context import EditorContext, load_editor_context
 from .plan_enrichment import enrich_editor_plan
 from .plan_filters import filter_editor_plan_figures
 from .integrity_check import validate_manuscript_integrity
+from .revision_loop import run_integrated_editor_qa
 from .plan_validate import validate_editor_plan
 from backend.logging.editor_run import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
@@ -50,7 +52,7 @@ class EditorPipeline:
     2. :class:`EditorOrchestratorAgent` → :class:`EditorPlan` (09)
     3. :class:`SectionCoordinator` → parallel section drafts (10)
     4. :class:`FigureAgent` → figure code + images (11)
-    5. :class:`IeeeValidatorAgent` → per-section validation (12)
+    5. Holistic manuscript QA + coordinated rewrites (12)
     6. :func:`assemble_manuscript` → main.tex (13)
     """
 
@@ -59,14 +61,9 @@ class EditorPipeline:
         self._settings = settings
 
         openai_client = OpenAIClient(
-            settings,  # type: ignore[arg-type]  # EditorSettings has orchestrator_api_key shim
+            settings,  # type: ignore[arg-type]
             api_key=settings.openai_key,
             model=settings.editor_orchestrator_model,
-        )
-        gemini_client = GeminiClient(
-            settings,  # type: ignore[arg-type]  # EditorSettings has gemini_search_api_key shim
-            api_key=settings.gemini_key,
-            model=settings.editor_validator_model,
         )
         writer_client = GeminiClient(
             settings,  # type: ignore[arg-type]
@@ -78,11 +75,12 @@ class EditorPipeline:
             api_key=settings.gemini_key,
             model=settings.figure_model,
         )
+        qa_client = manuscript_qa_client(settings)
 
         self._orchestrator = EditorOrchestratorAgent(openai_client, settings=settings)
         self._writer = SectionWriterAgent(writer_client)
         self._coordinator = SectionCoordinator(self._writer)
-        self._validator = IeeeValidatorAgent(gemini_client)
+        self._qa_agent = ManuscriptQaAgent(qa_client)
         self._figure_agent = FigureAgent(figure_client, settings)
 
     async def run(
@@ -210,67 +208,61 @@ class EditorPipeline:
                 ok_f = sum(1 for f in figures if f.success)
                 log.ok(f"{ok_f}/{len(figures)} figures → 11_figures/")
 
-        # ── STEP 5: IEEE Validation ────────────────────────────────────
+        # ── STEP 5: Integrated manuscript QA (holistic + coordinated fixes) ──
         validation: list = []
         with log.step(
-            "IEEE Validation",
-            agent=f"Gemini {self._settings.default_gemini_model} + deterministic checks",
+            "Integrated Manuscript QA",
+            agent=f"{self._settings.manuscript_qa_model} holistic review + coordinated section/figure revision",
         ):
-            print("[STEP] Validating IEEE format compliance", flush=True)
+            print("[STEP] Holistic manuscript QA (sections + figures together)", flush=True)
             if sections:
                 try:
+                    threshold = self._settings.editor_qa_score_threshold
                     loaded_val = load_editor_validation(execution_dir) if resume else []
-                    done_ids = {v.section_id for v in loaded_val}
-                    if resume and len(done_ids) >= len(sections):
+                    qa_report_path = execution_dir / "12_editor_validation" / "manuscript_qa_report.json"
+                    skip_qa = (
+                        resume
+                        and loaded_val
+                        and len(loaded_val) >= len(sections)
+                        and qa_report_path.is_file()
+                        and all(v.verdict == "pass" for v in loaded_val)
+                        and all(v.score >= threshold for v in loaded_val)
+                    )
+                    if skip_qa:
                         validation = loaded_val
-                        log.ok(f"Resumed {len(validation)} validation results from 12_editor_validation/")
+                        log.ok(
+                            f"Resumed passing QA ({len(validation)} sections) from 12_editor_validation/"
+                        )
                     else:
-                        pending = (
-                            [s for s in sections if s.section_id not in done_ids]
-                            if resume
-                            else sections
-                        )
-                        if resume and loaded_val:
-                            log.arrow(
-                                f"Validating {len(pending)} remaining section(s) "
-                                f"({len(loaded_val)} already on disk)",
-                            )
-                        threshold = self._settings.editor_validator_score_threshold
-                        max_rw = self._settings.editor_validator_rewrite_max_attempts
-                        new_val, rewritten = await self._validator.validate_all_with_rewrites(
-                            pending,
-                            plan,
-                            context,
-                            self._writer,
-                            threshold=threshold,
-                            max_rewrites=max_rw,
+                        sections, figures, validation, qa_report = await run_integrated_editor_qa(
+                            plan=plan,
+                            sections=sections,
+                            figures=figures,
+                            context=context,
+                            qa_agent=self._qa_agent,
+                            writer=self._writer,
+                            figure_agent=self._figure_agent,
+                            settings=self._settings,
                             run_dir=execution_dir,
-                            persist_each=True,
+                            log=log,
                         )
-                        if any(r.rewrite_attempts > 0 for r in new_val):
-                            by_id = {s.section_id: s for s in sections}
-                            for d in rewritten:
-                                by_id[d.section_id] = d
-                            sections = [
-                                by_id[sp.section_id]
-                                for sp in plan.ordered_sections
-                                if sp.section_id in by_id
-                            ]
-                            write_sections(execution_dir, sections)
-                            n_rw = sum(1 for r in new_val if r.rewrite_attempts > 0)
-                            log.ok(f"Rewrote {n_rw} section(s) after low validator score (<{threshold})")
-                        validation = loaded_val + new_val
                         write_editor_validation(execution_dir, validation)
+                        if any(r.rewrite_attempts > 0 for r in validation):
+                            n_rw = sum(1 for r in validation if r.rewrite_attempts > 0)
+                            log.ok(
+                                f"Integrated QA completed {qa_report.revision_round + 1} round(s); "
+                                f"{n_rw} section(s) revised holistically"
+                            )
                     log.log_validation(
                         validation,
-                        threshold=self._settings.editor_validator_score_threshold,
+                        threshold=self._settings.editor_qa_score_threshold,
                     )
                     v_pass = sum(1 for v in validation if v.verdict == "pass")
                     v_warn = sum(1 for v in validation if v.verdict == "warn")
                     v_fail = sum(1 for v in validation if v.verdict == "fail")
                     log.ok(f"Results: {v_pass} pass / {v_warn} warn / {v_fail} fail → 12_editor_validation/")
                 except Exception as exc:
-                    log.fail(f"Validator failed: {exc}")
+                    log.fail(f"Manuscript QA failed: {exc}")
                     errors.append(f"Validation failed: {exc}")
             else:
                 log.warn("No sections to validate.")

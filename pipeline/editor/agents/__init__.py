@@ -2,13 +2,13 @@
 
 from .orchestrator import EditorOrchestratorAgent
 from .section_writer import SectionCoordinator, SectionWriterAgent
-from .ieee_validator import IeeeValidatorAgent
 from .figure_agent import FigureAgent
+from .manuscript_qa import ManuscriptQaAgent
 
 __all__ = [
     "EditorOrchestratorAgent",
     "FigureAgent",
-    "IeeeValidatorAgent",
+    "ManuscriptQaAgent",
     "SectionCoordinator",
     "SectionWriterAgent",
 ]

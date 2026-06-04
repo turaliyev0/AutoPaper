@@ -22,6 +22,7 @@ class RunStatus(str, Enum):
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
+    AWAITING_INPUT = "awaiting_input"
     DONE = "done"
     ERROR = "error"
 
@@ -34,6 +35,7 @@ class PipelineRun:
     created_at: str
     status: RunStatus = RunStatus.PENDING
     execution_dir: str = ""
+    input_path: str = ""
     pdf_path: str = ""
     log_lines: list[str] = field(default_factory=list)
     error: str = ""
@@ -52,7 +54,7 @@ class PipelineRun:
         self._subscribers.append(q)
         for line in self.log_lines:
             q.put_nowait({"type": "log", "line": line})
-        if self.status in (RunStatus.DONE, RunStatus.ERROR):
+        if self.status in (RunStatus.DONE, RunStatus.ERROR, RunStatus.AWAITING_INPUT):
             q.put_nowait({"type": "done", "status": self.status.value})
         return q
 
@@ -87,6 +89,7 @@ class PipelineRun:
             "status": self.status.value,
             "current_step": self.current_step,
             "execution_dir": self.execution_dir,
+            "input_path": self.input_path,
             "has_pdf": bool(self.pdf_path and Path(self.pdf_path).is_file()),
             "error": self.error,
             "sections_ok": self.sections_ok,
@@ -116,6 +119,7 @@ class PipelineRun:
             created_at=str(data.get("created_at", "")),
             status=status,
             execution_dir=str(data.get("execution_dir", "")),
+            input_path=str(data.get("input_path", "")),
             pdf_path=str(data.get("pdf_path", "")),
             error=str(data.get("error", "")),
             current_step=str(data.get("current_step", "")),

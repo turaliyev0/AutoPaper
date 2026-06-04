@@ -13,10 +13,6 @@ from .search import GeminiSearchAgent, OpenAISearchAgent
 
 logger = logging.getLogger(__name__)
 
-_LEGACY_SEARCH_IDS: dict[str, str] = {
-    "gemini_explorer": "gemini_search",
-}
-
 
 class SearchCoordinator:
     def __init__(
@@ -44,10 +40,9 @@ class SearchCoordinator:
     ) -> GatheredResearchBundle:
         coros = []
         for target in plan.execution_strategy.target_agents:
-            agent_id = _LEGACY_SEARCH_IDS.get(target.agent_id, target.agent_id)
+            agent_id = target.agent_id
             if agent_id not in ACTIVE_SEARCH_AGENT_IDS:
-                if agent_id in {"claude_search", "exa_search"}:
-                    logger.debug("Skipping disabled search agent: %s", agent_id)
+                logger.debug("Skipping inactive search agent: %s", agent_id)
                 continue
             impl = self._agents.get(agent_id)
             if impl is None:

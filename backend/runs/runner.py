@@ -15,6 +15,8 @@ from backend.db.run_store import PipelineRun, RunStatus, store
 
 from .config import PipelineRunConfig
 
+INPUT_GAPS_EXIT_CODE = 3
+
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
@@ -75,6 +77,34 @@ def _build_cmd(input_path: Path, ieee_format: str, config: PipelineRunConfig) ->
         cmd.append("--strict")
     else:
         cmd.append("--force-continue-on-mismatch")
+    if config.completeness_policy == "strict":
+        cmd.append("--strict-input-gaps")
+    elif config.completeness_policy == "continue":
+        cmd.append("--force-continue-on-input-gaps")
+    return cmd
+
+
+def _build_continue_cmd(
+    input_path: Path,
+    execution_dir: Path,
+    ieee_format: str,
+    config: PipelineRunConfig,
+) -> list[str]:
+    cmd = [
+        sys.executable, "-m", "autopaper.main.app",
+        "--input", str(input_path),
+        "--execution-dir", str(execution_dir),
+        "--continue-after-gaps",
+        "--ieee-format", ieee_format,
+    ]
+    if config.ingest_only:
+        cmd.append("--no-research")
+    elif config.full_research:
+        cmd.append("--full-research")
+    if config.ieee_edit and not config.ingest_only:
+        cmd.append("--ieee-edit")
+        if config.log_editor:
+            cmd.append("--log-editor")
     return cmd
 
 
@@ -104,6 +134,19 @@ async def _execute(
         _resolve_pdf(run)
 
         if returncode != 0:
+            if returncode == INPUT_GAPS_EXIT_CODE:
+                run.status = RunStatus.AWAITING_INPUT
+                run.push({
+                    "type": "log",
+                    "line": (
+                        "[AutoPaper] Input incomplete — waiting for user supplements. "
+                        "Submit answers via POST /api/runs/{id}/supplement then pipeline continues."
+                    ),
+                })
+                run.push({"type": "status", "status": "awaiting_input"})
+                run.push({"type": "done", "status": "awaiting_input"})
+                store.persist(run)
+                return
             if _pdf_produced(run) and _is_interrupt_exit(returncode):
                 run.push({
                     "type": "log",
@@ -290,3 +333,69 @@ def _resolve_pdf(run: PipelineRun) -> None:
             if candidate.is_file():
                 run.pdf_path = str(candidate)
                 return
+
+
+async def run_pipeline_continue(
+    run: PipelineRun,
+    input_path: Path,
+    execution_dir: Path,
+    *,
+    ieee_format: str = "journal",
+    config: PipelineRunConfig | None = None,
+    supplement_json: Path | None = None,
+) -> None:
+    """Resume after user submitted input supplements (research + optional editor)."""
+    sem = _get_semaphore()
+    async with sem:
+        await _execute_continue(
+            run,
+            input_path,
+            execution_dir,
+            ieee_format=ieee_format,
+            config=config or PipelineRunConfig(),
+            supplement_json=supplement_json,
+        )
+
+
+async def _execute_continue(
+    run: PipelineRun,
+    input_path: Path,
+    execution_dir: Path,
+    *,
+    ieee_format: str,
+    config: PipelineRunConfig,
+    supplement_json: Path | None = None,
+) -> None:
+    cmd = _build_continue_cmd(input_path, execution_dir, ieee_format, config)
+    if supplement_json is not None:
+        cmd.extend(["--supplement-json", str(supplement_json)])
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(_PROJECT_ROOT)
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["NO_COLOR"] = "1"
+    env["TERM"] = "dumb"
+
+    run.status = RunStatus.RUNNING
+    run.execution_dir = str(execution_dir)
+    run.push({"type": "status", "status": "running"})
+    run.push({"type": "log", "line": "[AutoPaper] Resuming after user supplements…"})
+
+    try:
+        returncode = await _run_subprocess(cmd, env, str(_PROJECT_ROOT), run)
+        _resolve_pdf(run)
+        if returncode != 0:
+            raise RuntimeError(f"Pipeline resume exited with code {returncode}")
+        run.status = RunStatus.DONE
+        run.push({"type": "log", "line": "[AutoPaper] Pipeline completed successfully."})
+    except Exception as exc:
+        tb = traceback.format_exc()
+        msg = repr(exc) if not str(exc) else str(exc)
+        run.status = RunStatus.ERROR
+        run.error = msg
+        run.push({"type": "log", "line": f"[AutoPaper] ERROR: {msg}"})
+        for tb_line in tb.splitlines():
+            run.push({"type": "log", "line": f"  {tb_line}"})
+
+    run.push({"type": "done", "status": run.status.value})
+    store.persist(run)
