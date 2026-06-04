@@ -1,26 +1,13 @@
-"""Shared LLM call logging to stderr (Gemini + OpenAI)."""
+"""OpenAI request / response / tool-session tracing to stderr."""
 
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
-logger = logging.getLogger("autopaper.llm.trace")
+from .config import llm_trace_enabled
 
-_LOG_ENV = (
-    "AUTOPAPER_LOG_TOOLS",
-    "AUTOPAPER_GEMINI_LOG",
-    "GEMINI_LOG_CALLS",
-    "RESEARCH_LOG_TOOLS",
-)
-
-
-def llm_trace_enabled() -> bool:
-    for name in _LOG_ENV:
-        if os.environ.get(name, "").strip().lower() in ("1", "true", "yes"):
-            return True
-    return False
+logger = logging.getLogger("autopaper.logging.openai")
 
 
 def _preview(text: str, limit: int = 280) -> str:

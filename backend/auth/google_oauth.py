@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from authlib.integrations.starlette_client import OAuth
 
-from backend.auth import (
+from .config import (
     GOOGLE_METADATA_URL,
     google_client_id,
     google_client_secret,
@@ -18,9 +18,7 @@ oauth.register(
     client_id=google_client_id(),
     client_secret=google_client_secret(),
     server_metadata_url=GOOGLE_METADATA_URL,
-    client_kwargs={
-        "scope": "openid email profile",
-    },
+    client_kwargs={"scope": "openid email profile"},
 )
 
 

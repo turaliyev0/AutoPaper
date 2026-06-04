@@ -178,7 +178,9 @@ def main(argv: list[str] | None = None) -> None:
     if getattr(args, "log_gemini", False):
         import os
 
-        os.environ["AUTOPAPER_LOG_TOOLS"] = "1"
+        from backend.logging import enable_llm_trace
+
+        enable_llm_trace()
 
     root = _resolve_root(args)
     out_arg = Path(args.output_dir).expanduser().resolve() if args.output_dir else None

@@ -9,7 +9,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
-from autopaper.gemini.trace import log_request, log_response
+from backend.logging.gemini import log_request, log_response
 
 from ..config import Settings
 from ..schemas import SourceSnippet

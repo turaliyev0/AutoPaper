@@ -1,6 +1,6 @@
-"""Shared LLM tracing utilities."""
+"""Deprecated — use ``backend.logging``."""
 
-from .trace import (
+from backend.logging import (
     emit,
     llm_trace_enabled,
     log_openai_request,

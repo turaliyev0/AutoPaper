@@ -157,7 +157,7 @@ def generate_json(
         if isinstance(first, str):
             user_preview = first
     try:
-        from autopaper.gemini.trace import log_request, log_response
+        from backend.logging.gemini import log_request, log_response
 
         log_request(
             label=f"pipeline.input.{agent.value}",
@@ -185,7 +185,7 @@ def generate_json(
             ) from exc
         raise
     try:
-        from autopaper.gemini.trace import log_response
+        from backend.logging.gemini import log_response
 
         log_response(response, label=f"pipeline.input.{agent.value}")
     except ImportError:
@@ -211,7 +211,7 @@ def generate_json(
         )
         retry_parts = list(content_parts) + [fix_hint]
         try:
-            from autopaper.gemini.trace import log_request
+            from backend.logging.gemini import log_request
 
             log_request(
                 label=f"pipeline.input.{agent.value}:json_retry",
@@ -232,7 +232,7 @@ def generate_json(
                 "Empty response from Gemini on JSON retry."
             ) from exc
         try:
-            from autopaper.gemini.trace import log_response
+            from backend.logging.gemini import log_response
 
             log_response(retry_response, label=f"pipeline.input.{agent.value}:json_retry")
         except ImportError:

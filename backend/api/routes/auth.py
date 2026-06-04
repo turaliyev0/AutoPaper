@@ -18,7 +18,7 @@ from backend.auth import (
     user_from_google_claims,
     verify_google_id_token,
 )
-from backend.google_oauth import oauth, redirect_uri
+from backend.auth.google_oauth import oauth, redirect_uri
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 

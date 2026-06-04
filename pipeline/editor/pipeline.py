@@ -22,7 +22,7 @@ from .plan_enrichment import enrich_editor_plan
 from .plan_filters import filter_editor_plan_figures
 from .integrity_check import validate_manuscript_integrity
 from .plan_validate import validate_editor_plan
-from .run_log import RunLog
+from backend.logging.editor_run import RunLog
 from .schemas import EditorPlan, EditorRunResult, FigureResult, IeeeFormat
 from .storage import (
     EXEC_EDITOR_PLAN,

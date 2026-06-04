@@ -10,7 +10,7 @@ from typing import Any
 
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, RateLimitError
 
-from autopaper.llm.trace import (
+from backend.logging import (
     llm_trace_enabled,
     log_openai_request,
     log_openai_response,

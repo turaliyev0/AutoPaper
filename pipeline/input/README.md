@@ -43,12 +43,14 @@ See `pipeline/input/__init__.py` for exports.
 from pathlib import Path
 from pipeline.input import run_ingest_pipeline
 
-bundle, run_dir = run_ingest_pipeline(Path("examples/neuro_stability"))
+bundle, run_dir = run_ingest_pipeline(Path("/path/to/your/paper_project"))
 ```
 
 ```bash
-autopaper --input examples/neuro_stability
+autopaper --input /path/to/your/paper_project
 ```
+
+Or submit via the web UI: `POST /api/runs` (multipart form with overview, methods, results, images).
 
 **Image validation:** after vision, unreadable or missing images stop the pipeline. After joiner, `mismatch_flags` trigger an interactive prompt (TTY), or use `--strict` / `--force-continue-on-mismatch`.
 

@@ -73,7 +73,9 @@ async def _async_main(args: argparse.Namespace) -> int:
     import os
 
     if args.log_tools:
-        os.environ["AUTOPAPER_LOG_TOOLS"] = "1"
+        from backend.logging import enable_llm_trace
+
+        enable_llm_trace()
     setup_logging()
     settings = load_settings(args.env)
     if args.output_dir is not None:

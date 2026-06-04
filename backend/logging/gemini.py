@@ -1,30 +1,19 @@
-"""Log / print Gemini API calls and function-call parts to the terminal."""
+"""Gemini request / response tracing to stderr."""
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from typing import Any
 
-logger = logging.getLogger("autopaper.gemini.trace")
+from .config import llm_trace_enabled
 
-_TRACE_ENV = ("GEMINI_LOG_CALLS", "AUTOPAPER_GEMINI_LOG", "AUTOPAPER_LOG_TOOLS")
+logger = logging.getLogger("autopaper.logging.gemini")
 
 
 def gemini_trace_enabled() -> bool:
-    try:
-        from autopaper.llm.trace import llm_trace_enabled
-
-        if llm_trace_enabled():
-            return True
-    except ImportError:
-        pass
-    for name in _TRACE_ENV:
-        if os.environ.get(name, "").strip().lower() in ("1", "true", "yes"):
-            return True
-    return False
+    return llm_trace_enabled()
 
 
 def _emit(block: str) -> None:

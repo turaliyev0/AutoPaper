@@ -79,6 +79,6 @@ Then restore this `README.md` (or keep it under version control).
 
 ## Related docs
 
-- [docs/FRONTEND_OPTIONS.md](../docs/FRONTEND_OPTIONS.md) — UI flags tied to ingest output (`citation_gap`, `mismatch_flags`, etc.)
 - [pipeline/input/README.md](../pipeline/input/README.md) — input stage
 - [pipeline/research/README.md](../pipeline/research/README.md) — research stage
+- API reference: `http://localhost:8000/docs` (Swagger) when the backend is running

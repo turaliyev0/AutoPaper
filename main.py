@@ -17,9 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend.api.auth_routes import router as auth_router
-from backend.api.runs_routes import router as runs_router
-from backend.api.system_routes import router as system_router
+from backend.api import auth_router, runs_router, system_router
 from backend.auth import auth_disabled, session_secret
 
 _PROJECT_ROOT = Path(__file__).resolve().parent

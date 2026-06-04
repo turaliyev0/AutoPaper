@@ -1,15 +1,7 @@
 """
-Structured run log for the editor pipeline.
+Structured editor pipeline log (``editor_run.log``).
 
-Writes a human-readable log to ``editor_run.log`` inside the execution
-directory *and* echoes every line to stderr so you can watch it live.
-
-Usage inside the pipeline::
-
-    log = RunLog(execution_dir)
-    with log.step("Editor Orchestrator", agent="Gemini gemini-2.5-flash"):
-        plan = await orchestrator.create_plan(context)
-        log.info(f"Plan: {len(plan.sections)} sections, {len(plan.figures)} figures")
+Writes to the execution directory and mirrors lines to stderr when verbose.
 """
 
 from __future__ import annotations
@@ -21,11 +13,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
 
-LOG_FILENAME = "editor_run.log"
+from .artifacts import EDITOR_RUN_LOG
+
 _SEP = "=" * 80
-_TICK = "\u2713"  # ✓
-_CROSS = "\u2717"  # ✗
-_ARROW = "\u2192"  # →
+_TICK = "\u2713"
+_CROSS = "\u2717"
+_ARROW = "\u2192"
+
+LOG_FILENAME = EDITOR_RUN_LOG
 
 
 def _now_iso() -> str:
@@ -39,11 +34,8 @@ def _duration(seconds: float) -> str:
     return f"{m}m {s}s"
 
 
-class RunLog:
-    """
-    Writes structured pipeline logs to ``execution_dir/editor_run.log``
-    and mirrors every line to stderr.
-    """
+class EditorRunLog:
+    """Human-readable step log for the IEEE editor pipeline."""
 
     def __init__(self, execution_dir: Path, *, verbose: bool = True) -> None:
         self._path = execution_dir / LOG_FILENAME
@@ -55,10 +47,6 @@ class RunLog:
         self._closed = False
         self._start_iso = _now_iso()
 
-    # ------------------------------------------------------------------
-    # Core emit
-    # ------------------------------------------------------------------
-
     def _emit(self, line: str) -> None:
         if self._closed:
             return
@@ -67,12 +55,7 @@ class RunLog:
         if self._verbose:
             print(line, file=sys.stderr, flush=True)
 
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
-
     def header(self, execution_dir: Path, ieee_format: str) -> None:
-        elapsed = ""
         self._emit(_SEP)
         self._emit(f"AUTOPAPER EDITOR PIPELINE — {self._start_iso}")
         self._emit(f"  execution_dir : {execution_dir}")
@@ -93,10 +76,6 @@ class RunLog:
 
     def arrow(self, msg: str) -> None:
         self._emit(f"    {_ARROW} {msg}")
-
-    # ------------------------------------------------------------------
-    # Step context manager
-    # ------------------------------------------------------------------
 
     @contextmanager
     def step(self, name: str, *, agent: str = "") -> Generator[None, None, None]:
@@ -120,10 +99,6 @@ class RunLog:
             if error is None:
                 self._emit(f"    Duration: {_duration(dur)}")
 
-    # ------------------------------------------------------------------
-    # Section / figure helpers
-    # ------------------------------------------------------------------
-
     def log_sections(self, sections: list) -> None:
         for d in sections:
             cites = len(d.citations_used) if hasattr(d, "citations_used") else 0
@@ -141,7 +116,11 @@ class RunLog:
             spec = specs.get(f.figure_id)
             reuse = spec.reuse_path if spec else ""
             if f.success:
-                how = f"reused {reuse}" if reuse and not f.code_path else f"generated (attempt {f.retries + 1})"
+                how = (
+                    f"reused {reuse}"
+                    if reuse and not f.code_path
+                    else f"generated (attempt {f.retries + 1})"
+                )
                 self._emit(f"    {_TICK} {f.figure_id:<30} {how}")
             else:
                 err = (f.error or "")[:70]
@@ -160,7 +139,8 @@ class RunLog:
             if v.issues:
                 issues_str = f"  — {v.issues[0][:60]}"
             self._emit(
-                f"    {tag} {v.section_id:<22} {v.verdict.upper()}{score_str}{thresh_mark}{rw_str}{issues_str}"
+                f"    {tag} {v.section_id:<22} {v.verdict.upper()}"
+                f"{score_str}{thresh_mark}{rw_str}{issues_str}"
             )
 
     def log_plan(self, plan) -> None:
@@ -186,10 +166,6 @@ class RunLog:
         if context.title:
             self.ok(f"Paper title                : {context.title}")
 
-    # ------------------------------------------------------------------
-    # Footer
-    # ------------------------------------------------------------------
-
     def footer(self, result) -> None:
         total = time.monotonic() - self._start_time
         ok_s = len(result.successful_sections)
@@ -207,8 +183,7 @@ class RunLog:
         self._emit(f"  Figures        : {ok_f}/{tot_f} OK")
         self._emit(f"  Validation     : {v_pass} pass / {v_warn} warn / {v_fail} fail")
         if result.pdf_path:
-            from pathlib import Path as P
-            p = P(result.pdf_path)
+            p = Path(result.pdf_path)
             if p.exists():
                 kb = round(p.stat().st_size / 1024, 1)
                 self._emit(f"  PDF            : {result.pdf_path} ({kb} KB)")
@@ -221,3 +196,7 @@ class RunLog:
         self._fh.close()
         if self._verbose:
             print(f"\n[log] Full run log written to: {self._path}", file=sys.stderr, flush=True)
+
+
+# Backward-compatible alias used by the editor pipeline
+RunLog = EditorRunLog

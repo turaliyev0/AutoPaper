@@ -14,5 +14,5 @@ paper_draft.md
 # Pipeline runs (repo root output/ or AUTOPAPER_OUTPUT_DIR)
 output/
 
-# Legacy per-input output (no longer written by default)
-examples/**/output/
+# Bundled sample paper folders (not used; runs use user upload or --input)
+examples/

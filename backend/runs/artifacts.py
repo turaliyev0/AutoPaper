@@ -7,10 +7,10 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-# Max artifact download / JSON load (10 MiB)
+from backend.logging.artifacts import EDITOR_RUN_LOG
+
 MAX_ARTIFACT_BYTES = 10 * 1024 * 1024
 
-# Well-known paths the UI may request (also allows any file under these prefixes)
 ALLOWED_EXACT = frozenset({
     "04_final_standardized.json",
     "09_editor_plan.json",
@@ -18,7 +18,7 @@ ALLOWED_EXACT = frozenset({
     "08_research_index.meta.json",
     "06_gathered_research.json",
     "05_orchestrator_plan.json",
-    "editor_run.log",
+    EDITOR_RUN_LOG,
     "00_run_manifest.json",
     "13_ieee_manuscript/main.tex",
     "13_ieee_manuscript/references.bib",

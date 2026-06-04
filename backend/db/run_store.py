@@ -10,18 +10,20 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from backend.logging.artifacts import API_RUN_LOG_SUFFIX
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+logger = logging.getLogger("autopaper.db.runs")
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _RUNS_DIR = _PROJECT_ROOT / "output" / "_runs"
 
 
 class RunStatus(str, Enum):
     PENDING = "pending"
-    QUEUED  = "queued"
+    QUEUED = "queued"
     RUNNING = "running"
-    DONE    = "done"
-    ERROR   = "error"
+    DONE = "done"
+    ERROR = "error"
 
 
 @dataclass
@@ -141,7 +143,7 @@ def _json_path(run_id: str) -> Path:
 
 
 def _log_path(run_id: str) -> Path:
-    return _RUNS_DIR / f"{run_id}.log"
+    return _RUNS_DIR / f"{run_id}{API_RUN_LOG_SUFFIX}"
 
 
 def _append_log_line(run_id: str, line: str) -> None:
@@ -159,7 +161,6 @@ def _read_log_lines(run_id: str) -> list[str]:
 
 
 def _reconcile_after_reload(run: PipelineRun) -> None:
-    """Fix status when the server restarted while a subprocess was still running."""
     if run.status not in (RunStatus.RUNNING, RunStatus.QUEUED, RunStatus.PENDING):
         _resolve_pdf_on_disk(run)
         return

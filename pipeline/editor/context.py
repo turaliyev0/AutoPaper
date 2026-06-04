@@ -177,7 +177,7 @@ class EditorContext:
         ieee_format: IeeeFormat,
     ) -> None:
         self.execution_dir = execution_dir
-        self.input_root = input_root  # original paper folder (examples/neuro_stability)
+        self.input_root = input_root  # original paper project folder from 00_run_manifest
         self.manuscript = manuscript
         self.research_artifacts = research_artifacts
         self.research_index_md = research_index_md

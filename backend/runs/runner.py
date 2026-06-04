@@ -1,13 +1,4 @@
-"""Runs the full AutoPaper pipeline as a subprocess and streams logs.
-
-Concurrency model
------------------
-A module-level semaphore (MAX_CONCURRENT_RUNS) limits how many pipeline
-subprocesses run at the same time.  Runs that cannot start immediately are
-queued with status "queued" and begin as soon as a slot opens.
-
-Set the env var AUTOPAPER_MAX_CONCURRENT_RUNS to override the default of 2.
-"""
+"""Run the full AutoPaper pipeline as a subprocess and stream logs."""
 
 from __future__ import annotations
 
@@ -18,21 +9,20 @@ import subprocess
 import sys
 import threading
 import traceback
-from dataclasses import dataclass
 from pathlib import Path
+
+from backend.db.run_store import PipelineRun, RunStatus, store
+
+from .config import PipelineRunConfig
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from backend.run_store import PipelineRun, RunStatus, store
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]   # AutoPaper/
-
-# Max pipelines running simultaneously (each is a heavy subprocess + LLM calls)
 MAX_CONCURRENT_RUNS: int = int(os.environ.get("AUTOPAPER_MAX_CONCURRENT_RUNS", "2"))
-_semaphore: asyncio.Semaphore | None = None   # created lazily on first event-loop use
+_semaphore: asyncio.Semaphore | None = None
 
-# Unix SIGINT (130) and Windows STATUS_CONTROL_C_EXIT (0xC000013A, signed/unsigned)
 _INTERRUPT_EXIT_CODES = frozenset({130, -2, -1073741510, 3221225786})
 
 
@@ -41,15 +31,6 @@ def _get_semaphore() -> asyncio.Semaphore:
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(MAX_CONCURRENT_RUNS)
     return _semaphore
-
-
-@dataclass
-class PipelineRunConfig:
-    full_research: bool = True
-    ieee_edit: bool = True
-    log_editor: bool = True
-    ingest_only: bool = False
-    mismatch_policy: str = "continue"  # continue | strict
 
 
 async def run_pipeline(
@@ -61,7 +42,6 @@ async def run_pipeline(
 ) -> None:
     sem = _get_semaphore()
 
-    # ── Queue if all slots are busy ───────────────────────────────────────────
     if sem.locked():
         run.status = RunStatus.QUEUED
         run.push({"type": "status", "status": "queued"})
@@ -151,8 +131,6 @@ async def _execute(
     store.persist(run)
 
 
-# ── Subprocess (Windows-safe) ─────────────────────────────────────────────────
-
 def _handle_output_line(run: PipelineRun, raw: bytes) -> None:
     line = _clean(raw.decode("utf-8", errors="replace").rstrip())
     if not line:
@@ -167,14 +145,12 @@ def _handle_output_line(run: PipelineRun, raw: bytes) -> None:
 
 
 async def _run_subprocess(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
-    """Stream pipeline stdout into run log. Uses threads on Windows when asyncio subprocess is unsupported."""
     if sys.platform == "win32":
         return await _run_subprocess_threaded(cmd, env, cwd, run)
     return await _run_subprocess_asyncio(cmd, env, cwd, run)
 
 
 def _detached_subprocess_kwargs() -> dict:
-    """Keep pipeline alive when the API dev server reloads (Windows Ctrl+C)."""
     if sys.platform == "win32":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}  # type: ignore[attr-defined]
     return {"start_new_session": True}
@@ -201,7 +177,6 @@ async def _run_subprocess_asyncio(cmd: list[str], env: dict[str, str], cwd: str,
 
 
 async def _run_subprocess_threaded(cmd: list[str], env: dict[str, str], cwd: str, run: PipelineRun) -> int:
-    """subprocess.Popen in a thread — works with any asyncio loop on Windows."""
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
 
@@ -235,8 +210,6 @@ async def _run_subprocess_threaded(cmd: list[str], env: dict[str, str], cwd: str
             raise payload  # type: ignore[misc]
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mK]")
 _UNICODE_BOX = str.maketrans({
     "\u2500": "-", "\u2502": "|", "\u2514": "+", "\u2510": "+",
@@ -253,11 +226,11 @@ def _clean(line: str) -> str:
     return line.strip()
 
 
-_RUN_DIR_RE  = re.compile(r"Run directory:\s*(.+)")
-_PDF_RE      = re.compile(r"PDF\s*:\s*(.+\.pdf)", re.IGNORECASE)
+_RUN_DIR_RE = re.compile(r"Run directory:\s*(.+)")
+_PDF_RE = re.compile(r"PDF\s*:\s*(.+\.pdf)", re.IGNORECASE)
 _SECTIONS_RE = re.compile(r"Sections\s*:\s*(\d+)/(\d+)")
-_VALID_RE    = re.compile(r"Validation.*?(\d+)\s*pass.*?(\d+)\s*warn.*?(\d+)\s*fail", re.IGNORECASE)
-_EXEC_RE     = re.compile(r"execution_dir\s*:\s*(.+)")
+_VALID_RE = re.compile(r"Validation.*?(\d+)\s*pass.*?(\d+)\s*warn.*?(\d+)\s*fail", re.IGNORECASE)
+_EXEC_RE = re.compile(r"execution_dir\s*:\s*(.+)")
 
 
 def _parse_progress(run: PipelineRun, line: str) -> None:
@@ -280,7 +253,7 @@ def _parse_progress(run: PipelineRun, line: str) -> None:
 
     m = _SECTIONS_RE.search(line)
     if m:
-        run.sections_ok    = int(m.group(1))
+        run.sections_ok = int(m.group(1))
         run.sections_total = int(m.group(2))
 
     m = _VALID_RE.search(line)

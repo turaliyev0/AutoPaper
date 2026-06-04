@@ -21,15 +21,21 @@ from fastapi import (
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.artifacts import list_artifacts, read_artifact_json, resolve_artifact_file
-from backend.auth import UserPublic, auth_disabled, get_current_user
-from backend.pipeline_runner import MAX_CONCURRENT_RUNS, PipelineRunConfig, run_pipeline
-from backend.run_store import RunStatus, store
+from backend.auth import UserPublic, get_current_user
+from backend.db.run_store import RunStatus, store
+from backend.runs import (
+    MAX_CONCURRENT_RUNS,
+    PipelineRunConfig,
+    list_artifacts,
+    read_artifact_json,
+    resolve_artifact_file,
+    run_pipeline,
+)
 
 router = APIRouter(prefix="/api", tags=["Runs"])
 
 _SAFE_RE = re.compile(r"[^\w.\-]")
-_UPLOADS_DIR = Path(__file__).resolve().parents[2] / "output" / "_uploads"
+_UPLOADS_DIR = Path(__file__).resolve().parents[3] / "output" / "_uploads"
 _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 

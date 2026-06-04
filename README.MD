@@ -9,9 +9,11 @@ Converts raw research data into a peer-review-ready IEEE manuscript using a mult
 ```
 AutoPaper/
 ├── backend/              # FastAPI service — REST + SSE API
-│   ├── main.py           # Endpoints, Swagger docs, static file serving
-│   ├── pipeline_runner.py# Async subprocess executor for the pipeline
-│   ├── run_store.py      # Run registry (persisted under output/_runs/, SSE pub/sub)
+│   ├── api/routes/       # auth, runs, system HTTP handlers
+│   ├── auth/             # Google OAuth + session tokens
+│   ├── db/               # Run registry (output/_runs/, SSE pub/sub)
+│   ├── runs/             # Pipeline subprocess runner + artifacts
+│   ├── logging/          # LLM traces, editor_run.log helpers
 │   └── requirements.txt
 │
 ├── frontend/             # React / Vite standalone app
@@ -185,6 +187,7 @@ npm run build
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | ✓ | OpenAI API key (research + editor orchestrators) |
 | `GOOGLE_API_KEY` | ✓ | Google / Gemini API key (search, validator, editor) |
+| `ANTHROPIC_API_KEY` | | Claude key (reserved; `claude_search` agent is disabled in this build) |
 | `EDITOR_IEEE_FORMAT` | | Default output format: `journal` or `conference` |
 | `EDITOR_ORCHESTRATOR_MODEL` | | OpenAI model for editor orchestrator (default: `gpt-4o`) |
 | `EDITOR_SECTION_WRITER_MODEL` | | Gemini model for section writer (default: `gemini-2.5-flash`) |
