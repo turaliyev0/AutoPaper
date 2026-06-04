@@ -7,9 +7,9 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_DEFAULT_GEMINI = "gemini-2.0-flash"
+_DEFAULT_GEMINI = "gemini-2.5-flash"
 _DEFAULT_OPENAI = "gpt-4o"
-_DEFAULT_CLAUDE = "claude-sonnet-4-20250514"
+_DEFAULT_CLAUDE = "claude-sonnet-4-6"
 
 ACTIVE_SEARCH_AGENT_IDS = frozenset({"gemini_search", "openai_search"})
 

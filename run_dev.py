@@ -25,10 +25,9 @@ if __name__ == "__main__":
         reload_dirs=_RELOAD_DIRS,
         reload_includes=[f"{d}/**/*.py" for d in _RELOAD_DIRS],
         reload_excludes=[
-            str(output_dir),
             "output",
             "output/**",
-            "**/output/**",
+            "frontend",
             "frontend/**",
         ],
     )

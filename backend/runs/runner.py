@@ -14,6 +14,7 @@ from pathlib import Path
 from backend.db.run_store import PipelineRun, RunStatus, store
 
 from .config import PipelineRunConfig
+from .provider_log import provider_status_lines, sanitize_subprocess_env, should_hide_user_log_line
 
 INPUT_GAPS_EXIT_CODE = 3
 
@@ -117,16 +118,21 @@ async def _execute(
 ) -> None:
     cmd = _build_cmd(input_path, ieee_format, config)
 
-    env = os.environ.copy()
+    env = sanitize_subprocess_env(os.environ.copy())
     env["PYTHONPATH"] = str(_PROJECT_ROOT)
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
+    env["AUTOPAPER_QUIET_STARTUP"] = "1"
+    env["AUTOPAPER_NON_INTERACTIVE"] = "1"
 
     run.status = RunStatus.RUNNING
     run.push({"type": "status", "status": "running"})
     run.push({"type": "log", "line": f"[AutoPaper] Starting pipeline for: {run.paper_title}"})
     run.push({"type": "log", "line": f"[AutoPaper] IEEE format: {ieee_format}"})
+    for line in provider_status_lines():
+        run.push({"type": "log", "line": line})
     run.push({"type": "log", "line": "[AutoPaper] " + "-" * 60})
 
     try:
@@ -176,12 +182,15 @@ async def _execute(
 
 def _handle_output_line(run: PipelineRun, raw: bytes) -> None:
     line = _clean(raw.decode("utf-8", errors="replace").rstrip())
-    if not line:
+    if not line or should_hide_user_log_line(line):
         return
     if line.startswith("[STEP]"):
         msg = line[6:].strip()
         run.push({"type": "step", "message": msg})
-        run.push({"type": "log", "line": f"  >> {msg}"})
+        run.push({"type": "log", "line": f"[Step] {msg}"})
+    elif line.startswith("Run directory:"):
+        run.push({"type": "log", "line": f"[AutoPaper] Output folder: {line.split(':', 1)[1].strip()}"})
+        _parse_progress(run, line)
     else:
         run.push({"type": "log", "line": line})
         _parse_progress(run, line)
@@ -203,6 +212,7 @@ async def _run_subprocess_asyncio(cmd: list[str], env: dict[str, str], cwd: str,
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             cwd=cwd,
@@ -227,6 +237,7 @@ async def _run_subprocess_threaded(cmd: list[str], env: dict[str, str], cwd: str
         try:
             proc = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd=cwd,
@@ -370,16 +381,22 @@ async def _execute_continue(
     if supplement_json is not None:
         cmd.extend(["--supplement-json", str(supplement_json)])
 
-    env = os.environ.copy()
+    env = sanitize_subprocess_env(os.environ.copy())
     env["PYTHONPATH"] = str(_PROJECT_ROOT)
     env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
+    env["AUTOPAPER_QUIET_STARTUP"] = "1"
+    env["AUTOPAPER_NON_INTERACTIVE"] = "1"
 
     run.status = RunStatus.RUNNING
     run.execution_dir = str(execution_dir)
     run.push({"type": "status", "status": "running"})
     run.push({"type": "log", "line": "[AutoPaper] Resuming after user supplements…"})
+    for line in provider_status_lines():
+        run.push({"type": "log", "line": line})
+    run.push({"type": "log", "line": "[AutoPaper] " + "-" * 60})
 
     try:
         returncode = await _run_subprocess(cmd, env, str(_PROJECT_ROOT), run)

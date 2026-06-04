@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -22,6 +23,31 @@ from pipeline.input.resume_input import continue_after_input_gaps, input_root_fr
 from pipeline.input.research_continue import ResearchContinuation
 
 _builtin_input = import_module("builtins").input
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _load_env() -> None:
+    from dotenv import load_dotenv
+
+    from backend.runs.provider_log import normalize_provider_env
+
+    load_dotenv(_REPO_ROOT / ".env")
+    normalize_provider_env()
+
+
+def _print_provider_status() -> None:
+    from backend.runs.provider_log import provider_status_lines
+
+    for line in provider_status_lines():
+        print(line, flush=True)
+
+
+def _stdin_is_interactive() -> bool:
+    """True only for direct CLI use with a real terminal (not API subprocess)."""
+    if os.environ.get("AUTOPAPER_NON_INTERACTIVE"):
+        return False
+    return sys.stdin.isatty()
 
 
 def _run_editor(
@@ -187,6 +213,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    _load_env()
+    if (
+        not args.editor_only
+        and not args.continue_after_gaps
+        and not os.environ.get("AUTOPAPER_QUIET_STARTUP")
+    ):
+        _print_provider_status()
+
     if args.continue_after_gaps:
         if not args.execution_dir or not args.input:
             print(
@@ -256,8 +290,6 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if getattr(args, "log_gemini", False):
-        import os
-
         from backend.logging import enable_llm_trace
 
         enable_llm_trace()
@@ -293,7 +325,7 @@ def main(argv: list[str] | None = None) -> None:
             research=research_mode,
             mismatch_policy=mismatch_policy,
             completeness_policy=completeness_policy,
-            stdin_is_tty=sys.stdin.isatty(),
+            stdin_is_tty=_stdin_is_interactive(),
         )
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)

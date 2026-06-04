@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_OPENAI = "gpt-4o"
 _DEFAULT_GEMINI = "gemini-2.5-flash"
-_DEFAULT_CLAUDE = "claude-sonnet-4-20250514"
+_DEFAULT_CLAUDE = "claude-sonnet-4-6"
 
 
 class EditorSettings(BaseSettings):

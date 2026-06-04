@@ -43,7 +43,7 @@ AutoPaper/
 | 2 | `pipeline.research` — orchestrator plans tasks → parallel search → validate → index | `05–08_*.json/md` |
 | 3 | `pipeline.editor` — plan sections, write LaTeX, generate figures, validate, compile PDF | `09–13_*/` |
 
-**Flow diagram (PDF):** [docs/pipeline_flow.pdf](docs/pipeline_flow.pdf) — regenerate with `python scripts/generate_pipeline_flow_pdf.py`
+**Flowchart (PDF):** [docs/pipeline_flow.pdf](docs/pipeline_flow.pdf) — boxes, arrows, swimlanes · `python scripts/generate_pipeline_flow_pdf.py`
 
 ---
 
@@ -194,11 +194,11 @@ npm run build
 | `EDITOR_ORCHESTRATOR_MODEL` | | OpenAI model for editor orchestrator (default: `gpt-4o`) |
 | `EDITOR_SECTION_WRITER_MODEL` | | Gemini model for section writer (default: `gemini-2.5-flash`) |
 | `EDITOR_FIGURE_MODEL` | | Gemini model for figure code (default: `gemini-2.5-flash`) |
-| `EDITOR_MANUSCRIPT_QA_MODEL` | | Claude model for holistic manuscript QA (default: `claude-sonnet-4-20250514`) |
+| `EDITOR_MANUSCRIPT_QA_MODEL` | | Claude model for holistic manuscript QA (default: `claude-sonnet-4-6`) |
 | `EDITOR_QA_SCORE_THRESHOLD` | | QA score threshold for rewrites (default: `70`) |
 | `EDITOR_QA_MAX_ROUNDS` | | Holistic QA revision rounds (default: `3`) |
 | `RESEARCH_ORCHESTRATOR_MODEL` | | OpenAI model for research orchestrator (default: `gpt-4o`) |
-| `RESEARCH_GEMINI_SEARCH_MODEL` | | Gemini model for literature search (default: `gemini-2.0-flash`) |
-| `RESEARCH_OPENAI_SEARCH_MODEL` | | Gemini model for critique search agent (default: `gemini-2.0-flash`) |
-| `RESEARCH_INDEX_MODEL` | | Gemini model for research index (default: `gemini-2.0-flash`) |
-| `RESEARCH_VALIDATOR_MODEL` | | Claude model for research validation (default: `claude-sonnet-4-20250514`) |
+| `RESEARCH_GEMINI_SEARCH_MODEL` | | Gemini model for literature search (default: `gemini-2.5-flash`) |
+| `RESEARCH_OPENAI_SEARCH_MODEL` | | Gemini model for critique search agent (default: `gemini-2.5-flash`) |
+| `RESEARCH_INDEX_MODEL` | | Gemini model for research index (default: `gemini-2.5-flash`) |
+| `RESEARCH_VALIDATOR_MODEL` | | Claude model for research validation (default: `claude-sonnet-4-6`) |

@@ -235,7 +235,7 @@ def analyze_completeness(
                         f"The file {rel} has no bibliographic citations. "
                         "If you have key references for this section, list them (Author, Year, Title)."
                     ),
-                    hint="Optional — skip by pressing Enter in CLI or omit in API answers.",
+                    hint="Optional - skip by pressing Enter in CLI or omit in API answers.",
                     reason=f"No citations detected in {rel}.",
                     target_path="details/references_notes.txt",
                 )

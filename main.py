@@ -1,4 +1,4 @@
-﻿"""AutoPaper — backend service (REST + SSE + Google OAuth)."""
+"""AutoPaper — backend service (REST + SSE + Google OAuth)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,15 @@ if sys.platform == "win32":
 
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+load_dotenv(_PROJECT_ROOT / ".env")
+
+from backend.runs.provider_log import normalize_provider_env
+
+normalize_provider_env()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -20,7 +29,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from backend.api import auth_router, runs_router, system_router
 from backend.auth import auth_disabled, session_secret
 
-_PROJECT_ROOT = Path(__file__).resolve().parent
 _FRONTEND_DIST = _PROJECT_ROOT / "frontend" / "dist"
 
 

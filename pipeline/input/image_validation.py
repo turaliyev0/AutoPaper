@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -200,7 +201,10 @@ def resolve_mismatch_continuation(
             reason="Stopped due to figure–text mismatches (--strict).",
         )
 
-    tty = sys.stdin.isatty() if is_tty is None else is_tty
+    if os.environ.get("AUTOPAPER_NON_INTERACTIVE"):
+        tty = False
+    else:
+        tty = sys.stdin.isatty() if is_tty is None else is_tty
     if not tty:
         raise MismatchAbortError(
             warnings,

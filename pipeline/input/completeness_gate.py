@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from enum import Enum
 from pathlib import Path
@@ -88,7 +89,7 @@ def load_gaps_file(run_path: Path) -> CompletenessReport | None:
 
 def format_pause_message(report: CompletenessReport, *, reason: str | None = None) -> str:
     lines = [
-        "Input completeness check — additional information needed before research:",
+        "Input completeness check - additional information needed before research:",
         "",
     ]
     for g in report.gaps:
@@ -106,6 +107,12 @@ def format_pause_message(report: CompletenessReport, *, reason: str | None = Non
 
 def _gap_targets(report: CompletenessReport) -> dict[str, str]:
     return {g.id: g.target_path for g in report.gaps}
+
+
+def _is_interactive(is_tty: bool | None) -> bool:
+    if os.environ.get("AUTOPAPER_NON_INTERACTIVE"):
+        return False
+    return sys.stdin.isatty() if is_tty is None else is_tty
 
 
 def collect_answers_interactive(report: CompletenessReport) -> dict[str, str]:
@@ -136,7 +143,7 @@ def collect_answers_interactive(report: CompletenessReport) -> dict[str, str]:
                 break
             if optional:
                 break
-            print("This field is required — please provide an answer.", file=sys.stderr)
+            print("This field is required - please provide an answer.", file=sys.stderr)
     return answers
 
 
@@ -187,11 +194,13 @@ def resolve_completeness_continuation(
             )
         return answers
 
-    tty = sys.stdin.isatty() if is_tty is None else is_tty
+    tty = _is_interactive(is_tty)
     if not tty:
+        print(format_pause_message(report), flush=True)
         print(f"Run directory: {run_path.resolve()}", flush=True)
         print(
-            f"[STEP] Paused — input gaps saved to {INPUT_GAPS_FILENAME}",
+            f"[STEP] Paused - input gaps saved to {INPUT_GAPS_FILENAME}. "
+            "Answer via API (GET /input-gaps, POST /supplement) or re-run CLI with answers.",
             flush=True,
         )
         raise InputCompletenessPause(

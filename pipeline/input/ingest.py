@@ -167,7 +167,7 @@ def run_ingest_pipeline(
 
     n_images = len(bundle.get("image_paths", []))
     if n_images == 0:
-        print("[STEP] No figures — skipping vision and joiner", flush=True)
+        print("[STEP] No figures - skipping vision and joiner", flush=True)
         cleaned_images = {"images": []}
         (run_path / CLEANED_IMAGES_FILENAME).write_text(
             json.dumps(cleaned_images, ensure_ascii=False, indent=2) + "\n",
