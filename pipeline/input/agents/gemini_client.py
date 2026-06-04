@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import random
+import time
 from pathlib import Path
 from typing import Any
 
@@ -128,6 +130,47 @@ def _response_text(response: Any) -> str:
     return ""
 
 
+def _is_retryable_gemini_error(exc: BaseException) -> bool:
+    from pipeline.research.clients.base import gemini_error_to_retryable
+
+    return gemini_error_to_retryable(exc) is not None
+
+
+def _generate_content_with_retry(
+    client: Any,
+    *,
+    model: str,
+    contents: list[Any],
+    config: Any,
+    label: str,
+    max_attempts: int = 8,
+) -> Any:
+    last_exc: BaseException | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config,
+            )
+        except Exception as exc:
+            last_exc = exc
+            err = str(exc).lower()
+            if "not found" in err or "404" in err:
+                raise
+            if not _is_retryable_gemini_error(exc):
+                raise
+            if attempt >= max_attempts:
+                break
+            from pipeline.research.clients.base import retry_wait_seconds
+
+            wait_s = retry_wait_seconds(exc) or min(2.0 ** attempt, 90.0)
+            wait_s += random.uniform(0.0, 2.0)
+            time.sleep(wait_s)
+    assert last_exc is not None
+    raise last_exc
+
+
 def generate_json(
     *,
     system_instruction: str,
@@ -168,10 +211,12 @@ def generate_json(
     except ImportError:
         pass
     try:
-        response = client.models.generate_content(
+        response = _generate_content_with_retry(
+            client,
             model=resolved,
             contents=content_parts,
             config=config,
+            label=f"pipeline.input.{agent.value}",
         )
     except Exception as exc:
         err = str(exc).lower()
@@ -221,10 +266,12 @@ def generate_json(
             )
         except ImportError:
             pass
-        retry_response = client.models.generate_content(
+        retry_response = _generate_content_with_retry(
+            client,
             model=resolved,
             contents=retry_parts,
             config=config,
+            label=f"pipeline.input.{agent.value}:json_retry",
         )
         retry_text = _response_text(retry_response)
         if not retry_text.strip():

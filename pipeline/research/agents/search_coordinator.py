@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from ..config import ACTIVE_SEARCH_AGENT_IDS
+from ..config import ACTIVE_SEARCH_AGENT_IDS, Settings
 from ..manuscript_context import ManuscriptContext
 from ..schemas import GatheredResearchBundle, GatheredTaskResult, OrchestratorPlan
 from ..utils import short_step_label
@@ -13,23 +13,45 @@ from .search import GeminiSearchAgent, OpenAISearchAgent
 
 logger = logging.getLogger(__name__)
 
+_gemini_semaphore: asyncio.Semaphore | None = None
+_gemini_semaphore_limit: int | None = None
+
+
+def _gemini_limit(settings: Settings | None) -> int:
+    if settings is None:
+        return 2
+    return max(1, int(getattr(settings, "research_gemini_max_concurrent", 2)))
+
+
+def _get_gemini_semaphore(settings: Settings | None) -> asyncio.Semaphore:
+    global _gemini_semaphore, _gemini_semaphore_limit
+    limit = _gemini_limit(settings)
+    if _gemini_semaphore is None or _gemini_semaphore_limit != limit:
+        _gemini_semaphore = asyncio.Semaphore(limit)
+        _gemini_semaphore_limit = limit
+    return _gemini_semaphore
+
 
 class SearchCoordinator:
     def __init__(
         self,
         gemini: GeminiSearchAgent,
         openai: OpenAISearchAgent,
+        *,
+        settings: Settings | None = None,
     ) -> None:
         self._agents = {
             "gemini_search": gemini,
             "openai_search": openai,
         }
+        self._settings = settings
 
     @classmethod
     def from_settings(cls, settings) -> SearchCoordinator:
         return cls(
             GeminiSearchAgent(settings),
             OpenAISearchAgent(settings),
+            settings=settings,
         )
 
     async def gather(
@@ -63,7 +85,11 @@ class SearchCoordinator:
                 "No search tasks in plan. Include gemini_search and/or openai_search."
             )
 
-        logger.info("SearchCoordinator: running %d search tasks in parallel", len(coros))
+        logger.info(
+            "SearchCoordinator: running %d search tasks (Gemini concurrency=%d)",
+            len(coros),
+            _gemini_limit(self._settings),
+        )
         raw = await asyncio.gather(*coros, return_exceptions=True)
 
         results: list[GatheredTaskResult] = []
@@ -98,9 +124,11 @@ class SearchCoordinator:
         label = short_step_label(task)
         agent_label = agent_id.replace("_", " ")
         print(f"[STEP] Researching ({agent_label}): {label}", flush=True)
+        sem = _get_gemini_semaphore(self._settings)
         try:
-            result = await impl.run_task(task, plan, manuscript=manuscript)
-        except Exception as exc:
+            async with sem:
+                result = await impl.run_task(task, plan, manuscript=manuscript)
+        except Exception:
             print(f"[STEP] Research failed ({agent_label}): {label}", flush=True)
             raise
         if result.success:

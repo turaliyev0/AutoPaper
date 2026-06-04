@@ -9,7 +9,7 @@ Multi-agent research — **GPT orchestrator**, **Gemini search**, **Claude valid
 | `gemini_search` | Gemini | Active — per-task file under `06_research/` |
 | `openai_search` | Gemini (critique role) | Active — per-task file under `06_research/` |
 | `research_validator` | Claude | Active — `07_validation/*.validation.json` |
-| Research index | Gemini | Active — `08_research_index.md` (catalog, not merged report) |
+| Research index | Deterministic catalog from manifests | Active — `08_research_index.md` |
 
 **Package path:** `pipeline/research/` (import as `pipeline.research`).
 

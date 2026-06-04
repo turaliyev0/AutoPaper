@@ -44,7 +44,12 @@ class Settings(BaseSettings):
         validation_alias="RESEARCH_VALIDATOR_MODEL",
     )
 
-    research_llm_max_retries: int = Field(default=6, validation_alias="RESEARCH_LLM_MAX_RETRIES")
+    research_llm_max_retries: int = Field(default=8, validation_alias="RESEARCH_LLM_MAX_RETRIES")
+    research_gemini_max_concurrent: int = Field(
+        default=2,
+        validation_alias="RESEARCH_GEMINI_MAX_CONCURRENT",
+        description="Max parallel Gemini search calls (reduces 503 spikes).",
+    )
     research_output_dir: Path = Field(
         default=Path("output/research_runs"),
         validation_alias="RESEARCH_OUTPUT_DIR",
